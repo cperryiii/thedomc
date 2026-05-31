@@ -126,7 +126,7 @@ section{ position:relative; }
 .step__loc + .step__loc{ margin-top:.6rem; }
 .step__loc b{ display:flex; align-items:center; padding-right:.85rem; border-right:1px solid rgba(231,217,189,.25); font-family:var(--sans); font-size:.64rem; letter-spacing:.18em; text-transform:uppercase; color:var(--gold); font-weight:600; }
 .step__loc span{ align-self:center; }
-.step__loc .maplink{ display:inline-block; margin-top:.35rem; font-family:var(--sans); font-size:.6rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); border-bottom:1px solid rgba(216,196,154,.5); padding-bottom:1px; transition:color .25s var(--ease), border-color .25s var(--ease); }
+.step__loc .maplink{ display:block; width:max-content; max-width:100%; margin-top:.45rem; font-family:var(--sans); font-size:.6rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); border-bottom:1px solid rgba(216,196,154,.5); padding-bottom:1px; transition:color .25s var(--ease), border-color .25s var(--ease); }
 .step__loc .maplink:hover{ color:#fff; border-color:#fff; }
 .step__loc--cost{ border-color:rgba(192,106,64,.65); background:rgba(154,74,43,.26); color:#F6EAD6; }
 .step__loc--cost b{ color:var(--rust-lt); border-right-color:rgba(192,106,64,.4); }
@@ -187,7 +187,7 @@ section{ position:relative; }
 .offering .rule{ width:48px; height:1px; background:var(--rust); margin:1.8rem auto 0; }
 
 /* ============================================================ GUIDE */
-.guide{ background:var(--parch); padding:clamp(4rem,9vw,6.5rem) 0; }
+.guide{ background:var(--parch); padding:clamp(2.75rem,6vw,4rem) 0; }
 .guide__grid{ display:grid; grid-template-columns:1fr; gap:clamp(2rem,5vw,3.5rem); align-items:center; }
 .guide__portrait{ position:relative; aspect-ratio:4/5; border-radius:5px; overflow:hidden; background:linear-gradient(160deg,var(--green-2),var(--green-3)); display:flex; align-items:center; justify-content:center; }
 .guide__portrait .ph{ text-align:center; color:rgba(251,244,232,.92); padding:2rem; }
