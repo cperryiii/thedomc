@@ -17,3 +17,5 @@ node_modules/
 .env.local
 *.local
 /scratch/
+.env.*
+!.env.example
