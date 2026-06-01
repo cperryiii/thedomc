@@ -139,8 +139,7 @@ section{ position:relative; }
 .step__btn{ display:block; width:100%; text-align:center; font-family:var(--sans); font-size:.72rem; letter-spacing:.16em; text-transform:uppercase; padding:.85em 1.5em; background:var(--rust); color:#fff; border-radius:8px; transition:background .3s var(--ease); }
 .step__btn:hover{ background:var(--rust-lt); }
 @media(min-width:721px){
-  .step__when--desc-align{ margin-top:3.15rem; }
-  .step__when--where-align{ margin-top:6.9rem; }
+  .step__when--desc-align{ margin-top:clamp(3.06rem, calc(5.12vw + .5rem), 4.1rem); }
 }
 @media(max-width:720px){
   /* single column so the text, location box and date box all share the same
