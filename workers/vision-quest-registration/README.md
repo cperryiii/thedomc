@@ -4,10 +4,17 @@ This Worker receives the `thedomc.org/vision-quest/` registration form, stores p
 
 ## Where registrations live
 
+Fast admin URL:
+
+https://vision-quest-registration.cperryiii.workers.dev/admin/
+
+This path is protected by Cloudflare Access and only allows `christopher@thedomc.org`.
+Use the one-time PIN sent to that email address.
+
 Cloudflare D1 database: `vision_quest_registrations`  
 Table: `registrations`
 
-Fast dashboard path:
+Fallback Cloudflare dashboard path:
 
 1. Log in to Cloudflare.
 2. Open Workers & Pages.
@@ -42,3 +49,11 @@ Email address is the registration identity.
 - Existing email + resend request: resend the confirmation and increment `resend_count`.
 
 Per-registration admin email notifications are currently disabled by `SEND_ADMIN_EMAIL = "false"` in `wrangler.toml`.
+
+## Admin behavior
+
+- `/admin/` shows active registrants.
+- `/admin/export.csv` downloads a CSV export.
+- Edit updates first name, last name, email, and session selection.
+- Remove soft-archives a row by setting `archived_at`; it does not hard-delete the data.
+- Admin responses send `X-Robots-Tag: noindex, nofollow, noarchive` and are not linked from the public site.
