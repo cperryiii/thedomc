@@ -52,13 +52,22 @@
   var veil = doc.getElementById('rsvp');
   var form = doc.getElementById('rsvpForm');
   var confirm = doc.getElementById('rsvpConfirm');
+  var registrationEndpoint = form ? form.getAttribute('data-registration-endpoint') : '';
   function openRsvp(session){
+    if(form){
+      form.reset();
+      form.style.display='block';
+      var submit = form.querySelector('button[type="submit"]');
+      if(submit){ submit.disabled=false; submit.textContent='Register'; submit.removeAttribute('aria-busy'); }
+    }
+    if(confirm) confirm.style.display='none';
     var opts = [].slice.call(doc.querySelectorAll('.sopt'));
     opts.forEach(function(o){ o.classList.remove('on'); o.setAttribute('aria-pressed','false'); });
     if(session){
       opts.forEach(function(o){ if(o.getAttribute('data-name')===session){ o.classList.add('on'); o.setAttribute('aria-pressed','true'); } });
     }
     var note = doc.getElementById('soptNote'); if(note) note.style.display='none';
+    clearRsvpError();
     veil.classList.add('open'); doc.body.style.overflow='hidden';
     var f=veil.querySelector('input'); if(f) setTimeout(function(){f.focus();},300);
   }
@@ -80,21 +89,67 @@
     });
   });
 
-  /* fake submit */
+  function clearRsvpError(){
+    var error = doc.getElementById('rsvpError');
+    if(error){ error.textContent=''; error.style.display='none'; }
+  }
+
+  function showRsvpError(message){
+    var error = doc.getElementById('rsvpError');
+    if(error){
+      error.textContent = message;
+      error.style.display='block';
+    }
+  }
+
   if(form){
-    form.addEventListener('submit', function(e){
+    form.addEventListener('submit', async function(e){
       e.preventDefault();
+      clearRsvpError();
       var chosen = [].slice.call(doc.querySelectorAll('.sopt.on')).map(function(o){ return o.getAttribute('data-name'); });
       if(chosen.length === 0){
         var note = doc.getElementById('soptNote'); if(note) note.style.display='block';
         return;
       }
+      if(!registrationEndpoint){
+        showRsvpError('Registration is not ready yet. Please try again in a moment.');
+        return;
+      }
+
       var first = ((form.querySelector('#rsvpFirst')||{}).value || '').trim();
-      form.style.display='none';
-      confirm.querySelector('.who').textContent = first ? (', ' + first) : '';
-      var sline = confirm.querySelector('.sessions');
-      if(sline) sline.textContent = chosen.join(' + ');
-      confirm.style.display='block';
+      var last = ((form.querySelector('#rsvpLast')||{}).value || '').trim();
+      var email = ((form.querySelector('#rsvpEmail')||{}).value || '').trim();
+      var website = ((form.querySelector('#rsvpWebsite')||{}).value || '').trim();
+      var submit = form.querySelector('button[type="submit"]');
+      if(submit){ submit.disabled=true; submit.textContent='Sending...'; submit.setAttribute('aria-busy','true'); }
+
+      try{
+        var response = await fetch(registrationEndpoint, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body:JSON.stringify({
+            firstName:first,
+            lastName:last,
+            email:email,
+            sessions:chosen,
+            website:website
+          })
+        });
+        var result = await response.json().catch(function(){ return {}; });
+        if(!response.ok || !result.ok){
+          throw new Error(result.error || 'Registration could not be completed.');
+        }
+
+        form.style.display='none';
+        confirm.querySelector('.who').textContent = first ? (', ' + first) : '';
+        var sline = confirm.querySelector('.sessions');
+        if(sline) sline.textContent = chosen.join(' + ');
+        confirm.style.display='block';
+      }catch(err){
+        showRsvpError((err && err.message) ? err.message : 'Registration could not be completed. Please try again.');
+      }finally{
+        if(submit){ submit.disabled=false; submit.textContent='Register'; submit.removeAttribute('aria-busy'); }
+      }
     });
   }
 })();

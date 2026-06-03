@@ -1,0 +1,17 @@
+name = "vision-quest-registration"
+main = "src/index.js"
+compatibility_date = "2026-06-03"
+workers_dev = true
+
+[vars]
+ADMIN_EMAIL = "cperryiii@yahoo.com"
+FROM_EMAIL = "Vision Quest <visionquest@thedomc.org>"
+SITE_URL = "https://thedomc.org/vision-quest/"
+MAP_URL = "https://www.google.com/maps/search/?api=1&query=Evelyn+Hallman+Park%2C+1900+N+College+Ave%2C+Tempe%2C+AZ+85288"
+ALLOWED_ORIGINS = "https://thedomc.org,https://www.thedomc.org,http://localhost:8000,http://127.0.0.1:8000,http://localhost:8787,http://127.0.0.1:8787"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "vision_quest_registrations"
+database_id = "46c92afd-c1fc-4d29-a2a2-733e99fce774"
+migrations_dir = "migrations"

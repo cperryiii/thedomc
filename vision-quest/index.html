@@ -186,7 +186,7 @@
 <!-- ===================== RSVP MODAL ===================== -->
 <div class="veil" id="rsvp">
   <div class="modal" role="dialog" aria-modal="true" aria-label="Request to join">
-    <form id="rsvpForm">
+    <form id="rsvpForm" data-registration-endpoint="https://vision-quest-registration.cperryiii.workers.dev/register">
       <h3>Register</h3>
       <p class="sub">Pick the session(s) you'd like to join and tell us where to reach you.</p>
       <div class="field">
@@ -215,6 +215,11 @@
         <label for="rsvpEmail">Email</label>
         <input id="rsvpEmail" type="email" placeholder="you@email.com" required>
       </div>
+      <div class="hp-field" aria-hidden="true">
+        <label for="rsvpWebsite">Website</label>
+        <input id="rsvpWebsite" type="text" tabindex="-1" autocomplete="off">
+      </div>
+      <p class="sopt-note" id="rsvpError" role="alert"></p>
       <div class="modal__row">
         <button type="button" class="btn-ghost" data-close-rsvp>Cancel</button>
         <button type="submit" class="btn-solid">Register</button>
@@ -223,7 +228,7 @@
     <div class="modal-confirm" id="rsvpConfirm" style="display:none;">
       <div class="seal">✦</div>
       <h3>Thank you<span class="who"></span>.</h3>
-      <p class="sub">You're registered for <b class="sessions"></b>. We'll email you the details soon.</p>
+      <p class="sub">You're registered for <b class="sessions"></b>. We emailed the details to you.</p>
       <div class="modal__row" style="justify-content:center;">
         <button type="button" class="btn-solid" data-close-rsvp>Close</button>
       </div>
@@ -231,6 +236,6 @@
   </div>
 </div>
 
-<script src="vq.js?v=11"></script>
+<script src="vq.js?v=12"></script>
 </body>
 </html>
