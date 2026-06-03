@@ -53,17 +53,98 @@ export default {
       }
 
       const registration = validateRegistration(payload);
-      const id = crypto.randomUUID();
-      const createdAt = new Date().toISOString();
+      const now = new Date().toISOString();
+      const resendRequested = payload.resend === true;
+      const existing = await findExistingRegistration(env.DB, registration.email);
 
+      if (existing) {
+        const mergedSessions = mergeSessions(existing.sessions, registration.sessions);
+        const hasNewSessions = mergedSessions.length > existing.sessions.length;
+        const confirmedRegistration = {
+          ...registration,
+          firstName: hasNewSessions ? registration.firstName : existing.firstName,
+          lastName: hasNewSessions ? registration.lastName : existing.lastName,
+          sessions: mergedSessions
+        };
+
+        if (!hasNewSessions && !resendRequested) {
+          return json(
+            {
+              ok: true,
+              status: "already_registered",
+              alreadyRegistered: true,
+              sessions: existing.sessions
+            },
+            200,
+            cors
+          );
+        }
+
+        const delivery = await sendRegistrationEmails(env, confirmedRegistration, existing.id, existing.createdAt, {
+          adminReason: hasNewSessions ? "updated" : "resend"
+        });
+
+        await env.DB.prepare(
+          `UPDATE registrations
+           SET first_name = ?,
+               last_name = ?,
+               sessions = ?,
+               updated_at = ?,
+               email_status = ?,
+               admin_email_status = ?,
+               error_message = ?,
+               last_confirmation_sent_at = CASE WHEN ? = 'sent' THEN ? ELSE last_confirmation_sent_at END,
+               resend_count = resend_count + ?
+           WHERE id = ?`
+        )
+          .bind(
+            confirmedRegistration.firstName,
+            confirmedRegistration.lastName,
+            JSON.stringify(mergedSessions),
+            now,
+            delivery.emailStatus,
+            delivery.adminEmailStatus,
+            delivery.errorMessage,
+            delivery.emailStatus,
+            now,
+            resendRequested && !hasNewSessions ? 1 : 0,
+            existing.id
+          )
+          .run();
+
+        if (!delivery.ok) {
+          return json(
+            { ok: false, error: "Registration was found, but email delivery needs attention." },
+            502,
+            cors
+          );
+        }
+
+        return json(
+          {
+            ok: true,
+            status: resendRequested && !hasNewSessions ? "confirmation_resent" : "registration_updated",
+            alreadyRegistered: !hasNewSessions,
+            resent: resendRequested && !hasNewSessions,
+            updated: hasNewSessions,
+            id: existing.id,
+            sessions: mergedSessions
+          },
+          200,
+          cors
+        );
+      }
+
+      const id = crypto.randomUUID();
       await env.DB.prepare(
         `INSERT INTO registrations
-          (id, created_at, first_name, last_name, email, sessions, source)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+          (id, created_at, updated_at, first_name, last_name, email, sessions, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
         .bind(
           id,
-          createdAt,
+          now,
+          now,
           registration.firstName,
           registration.lastName,
           registration.email,
@@ -72,36 +153,22 @@ export default {
         )
         .run();
 
-      const registrantEmail = buildRegistrantEmail(registration, env);
-      const adminEmail = buildAdminEmail(registration, id, createdAt, env);
-
-      let emailStatus = "sent";
-      let adminEmailStatus = "sent";
-      let errorMessage = null;
-
-      try {
-        await sendResend(env, registrantEmail);
-      } catch (error) {
-        emailStatus = "failed";
-        errorMessage = shortError(error);
-      }
-
-      try {
-        await sendResend(env, adminEmail);
-      } catch (error) {
-        adminEmailStatus = "failed";
-        errorMessage = errorMessage || shortError(error);
-      }
+      const delivery = await sendRegistrationEmails(env, registration, id, now, {
+        adminReason: "new"
+      });
 
       await env.DB.prepare(
         `UPDATE registrations
-         SET email_status = ?, admin_email_status = ?, error_message = ?
+         SET email_status = ?,
+             admin_email_status = ?,
+             error_message = ?,
+             last_confirmation_sent_at = CASE WHEN ? = 'sent' THEN ? ELSE last_confirmation_sent_at END
          WHERE id = ?`
       )
-        .bind(emailStatus, adminEmailStatus, errorMessage, id)
+        .bind(delivery.emailStatus, delivery.adminEmailStatus, delivery.errorMessage, delivery.emailStatus, now, id)
         .run();
 
-      if (emailStatus !== "sent" || adminEmailStatus !== "sent") {
+      if (!delivery.ok) {
         return json(
           { ok: false, error: "Registration was saved, but email delivery needs attention." },
           502,
@@ -109,7 +176,7 @@ export default {
         );
       }
 
-      return json({ ok: true, id, sessions: registration.sessions }, 200, cors);
+      return json({ ok: true, status: "registered", id, sessions: registration.sessions }, 200, cors);
     } catch (error) {
       const status = error instanceof PublicError ? error.status : 500;
       const message = error instanceof PublicError ? error.message : "Registration could not be completed.";
@@ -172,6 +239,79 @@ function normalizeSessions(value) {
     }
   }
   return SESSION_ORDER.filter((session) => seen.has(session));
+}
+
+async function findExistingRegistration(db, email) {
+  const result = await db.prepare(
+    `SELECT id, created_at, first_name, last_name, sessions
+     FROM registrations
+     WHERE email = ?
+     ORDER BY created_at ASC`
+  )
+    .bind(email)
+    .all();
+
+  const rows = result.results || [];
+  if (!rows.length) return null;
+
+  let sessions = [];
+  for (const row of rows) {
+    sessions = mergeSessions(sessions, parseSessions(row.sessions));
+  }
+
+  return {
+    id: rows[0].id,
+    createdAt: rows[0].created_at,
+    firstName: rows[0].first_name,
+    lastName: rows[0].last_name,
+    sessions
+  };
+}
+
+function parseSessions(value) {
+  try {
+    return normalizeSessions(JSON.parse(value));
+  } catch {
+    return [];
+  }
+}
+
+function mergeSessions(current, requested) {
+  const seen = new Set([...(current || []), ...(requested || [])]);
+  return SESSION_ORDER.filter((session) => seen.has(session));
+}
+
+async function sendRegistrationEmails(env, registration, id, createdAt, options = {}) {
+  let emailStatus = "sent";
+  let adminEmailStatus = adminNotificationsEnabled(env) ? "sent" : "skipped";
+  let errorMessage = null;
+
+  try {
+    await sendResend(env, buildRegistrantEmail(registration, env));
+  } catch (error) {
+    emailStatus = "failed";
+    errorMessage = shortError(error);
+  }
+
+  if (adminNotificationsEnabled(env) && options.adminReason !== "resend") {
+    try {
+      await sendResend(env, buildAdminEmail(registration, id, createdAt, env));
+    } catch (error) {
+      adminEmailStatus = "failed";
+      errorMessage = errorMessage || shortError(error);
+    }
+  }
+
+  return {
+    ok: emailStatus === "sent" && adminEmailStatus !== "failed",
+    emailStatus,
+    adminEmailStatus,
+    errorMessage
+  };
+}
+
+function adminNotificationsEnabled(env) {
+  return String(env.SEND_ADMIN_EMAIL || "false").toLowerCase() === "true";
 }
 
 function buildRegistrantEmail(registration, env) {

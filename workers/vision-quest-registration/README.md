@@ -1,0 +1,44 @@
+# Vision Quest Registration Backend
+
+This Worker receives the `thedomc.org/vision-quest/` registration form, stores private registrations in Cloudflare D1, and sends registrant confirmations through Resend.
+
+## Where registrations live
+
+Cloudflare D1 database: `vision_quest_registrations`  
+Table: `registrations`
+
+Fast dashboard path:
+
+1. Log in to Cloudflare.
+2. Open Workers & Pages.
+3. Open D1 SQL Database.
+4. Select `vision_quest_registrations`.
+5. Use the Console / query view.
+
+Useful query:
+
+```sql
+SELECT
+  created_at,
+  updated_at,
+  first_name,
+  last_name,
+  email,
+  sessions,
+  email_status,
+  last_confirmation_sent_at,
+  resend_count
+FROM registrations
+ORDER BY created_at DESC;
+```
+
+## Duplicate behavior
+
+Email address is the registration identity.
+
+- New email: create a registration and send a confirmation.
+- Existing email + new session: update the existing registration and send an updated confirmation.
+- Existing email + no new sessions: do not create a duplicate and do not send email automatically.
+- Existing email + resend request: resend the confirmation and increment `resend_count`.
+
+Per-registration admin email notifications are currently disabled by `SEND_ADMIN_EMAIL = "false"` in `wrangler.toml`.

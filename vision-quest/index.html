@@ -228,14 +228,16 @@
     <div class="modal-confirm" id="rsvpConfirm" style="display:none;">
       <div class="seal">✦</div>
       <h3>Thank you<span class="who"></span>.</h3>
-      <p class="sub">You're registered for <b class="sessions"></b>. We emailed the details to you.</p>
+      <p class="sub" id="rsvpConfirmMessage">You're registered. We emailed the details to you.</p>
+      <p class="sopt-note" id="rsvpConfirmError" role="alert"></p>
       <div class="modal__row" style="justify-content:center;">
+        <button type="button" class="btn-ghost" id="rsvpResend" style="display:none;">Resend confirmation</button>
         <button type="button" class="btn-solid" data-close-rsvp>Close</button>
       </div>
     </div>
   </div>
 </div>
 
-<script src="vq.js?v=12"></script>
+<script src="vq.js?v=13"></script>
 </body>
 </html>

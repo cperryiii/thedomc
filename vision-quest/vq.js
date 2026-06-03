@@ -53,6 +53,7 @@
   var form = doc.getElementById('rsvpForm');
   var confirm = doc.getElementById('rsvpConfirm');
   var registrationEndpoint = form ? form.getAttribute('data-registration-endpoint') : '';
+  var lastRegistrationPayload = null;
   function openRsvp(session){
     if(form){
       form.reset();
@@ -61,6 +62,8 @@
       if(submit){ submit.disabled=false; submit.textContent='Register'; submit.removeAttribute('aria-busy'); }
     }
     if(confirm) confirm.style.display='none';
+    var resend = doc.getElementById('rsvpResend');
+    if(resend){ resend.style.display='none'; resend.disabled=false; resend.textContent='Resend confirmation'; }
     var opts = [].slice.call(doc.querySelectorAll('.sopt'));
     opts.forEach(function(o){ o.classList.remove('on'); o.setAttribute('aria-pressed','false'); });
     if(session){
@@ -92,14 +95,64 @@
   function clearRsvpError(){
     var error = doc.getElementById('rsvpError');
     if(error){ error.textContent=''; error.style.display='none'; }
+    var confirmError = doc.getElementById('rsvpConfirmError');
+    if(confirmError){ confirmError.textContent=''; confirmError.style.display='none'; }
   }
 
   function showRsvpError(message){
-    var error = doc.getElementById('rsvpError');
+    var confirmOpen = confirm && confirm.style.display !== 'none';
+    var error = doc.getElementById(confirmOpen ? 'rsvpConfirmError' : 'rsvpError');
     if(error){
       error.textContent = message;
       error.style.display='block';
     }
+  }
+
+  function setButtonBusy(button, busy, busyText, readyText){
+    if(!button) return;
+    button.disabled = !!busy;
+    button.textContent = busy ? busyText : readyText;
+    if(busy) button.setAttribute('aria-busy','true');
+    else button.removeAttribute('aria-busy');
+  }
+
+  async function postRegistration(payload){
+    var response = await fetch(registrationEndpoint, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body:JSON.stringify(payload)
+    });
+    var result = await response.json().catch(function(){ return {}; });
+    if(!response.ok || !result.ok){
+      throw new Error(result.error || 'Registration could not be completed.');
+    }
+    return result;
+  }
+
+  function showConfirmation(first, result){
+    clearRsvpError();
+    form.style.display='none';
+    confirm.querySelector('.who').textContent = first ? (', ' + first) : '';
+    var sessions = ((result && result.sessions) || []).join(' + ');
+    var message = "You're registered for " + sessions + ". We emailed the details to you.";
+    var resend = doc.getElementById('rsvpResend');
+
+    if(result && result.status === 'already_registered'){
+      message = "You're already registered for " + sessions + ". We'll send any event changes to this email. If the confirmation email did not arrive, resend it below.";
+      if(resend) resend.style.display='inline-block';
+    }else if(result && result.status === 'confirmation_resent'){
+      message = "We resent the confirmation email for " + sessions + ".";
+      if(resend) resend.style.display='none';
+    }else if(result && result.status === 'registration_updated'){
+      message = "You're now registered for " + sessions + ". We emailed the updated details to you.";
+      if(resend) resend.style.display='none';
+    }else if(resend){
+      resend.style.display='none';
+    }
+
+    var messageEl = doc.getElementById('rsvpConfirmMessage');
+    if(messageEl) messageEl.textContent = message;
+    confirm.style.display='block';
   }
 
   if(form){
@@ -121,35 +174,40 @@
       var email = ((form.querySelector('#rsvpEmail')||{}).value || '').trim();
       var website = ((form.querySelector('#rsvpWebsite')||{}).value || '').trim();
       var submit = form.querySelector('button[type="submit"]');
-      if(submit){ submit.disabled=true; submit.textContent='Sending...'; submit.setAttribute('aria-busy','true'); }
+      lastRegistrationPayload = {
+        firstName:first,
+        lastName:last,
+        email:email,
+        sessions:chosen,
+        website:website
+      };
+      setButtonBusy(submit, true, 'Sending...', 'Register');
 
       try{
-        var response = await fetch(registrationEndpoint, {
-          method:'POST',
-          headers:{ 'Content-Type':'application/json' },
-          body:JSON.stringify({
-            firstName:first,
-            lastName:last,
-            email:email,
-            sessions:chosen,
-            website:website
-          })
-        });
-        var result = await response.json().catch(function(){ return {}; });
-        if(!response.ok || !result.ok){
-          throw new Error(result.error || 'Registration could not be completed.');
-        }
-
-        form.style.display='none';
-        confirm.querySelector('.who').textContent = first ? (', ' + first) : '';
-        var sline = confirm.querySelector('.sessions');
-        if(sline) sline.textContent = chosen.join(' + ');
-        confirm.style.display='block';
+        var result = await postRegistration(lastRegistrationPayload);
+        showConfirmation(first, result);
       }catch(err){
         showRsvpError((err && err.message) ? err.message : 'Registration could not be completed. Please try again.');
       }finally{
-        if(submit){ submit.disabled=false; submit.textContent='Register'; submit.removeAttribute('aria-busy'); }
+        setButtonBusy(submit, false, 'Sending...', 'Register');
       }
     });
+
+    var resendButton = doc.getElementById('rsvpResend');
+    if(resendButton){
+      resendButton.addEventListener('click', async function(){
+        if(!lastRegistrationPayload || !registrationEndpoint) return;
+        clearRsvpError();
+        setButtonBusy(resendButton, true, 'Resending...', 'Resend confirmation');
+        try{
+          var result = await postRegistration(Object.assign({}, lastRegistrationPayload, { resend:true }));
+          showConfirmation(lastRegistrationPayload.firstName, result);
+        }catch(err){
+          showRsvpError((err && err.message) ? err.message : 'Confirmation could not be resent. Please try again.');
+        }finally{
+          setButtonBusy(resendButton, false, 'Resending...', 'Resend confirmation');
+        }
+      });
+    }
   }
 })();
