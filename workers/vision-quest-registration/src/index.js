@@ -231,6 +231,12 @@ async function handleAdmin(request, env, url) {
       return adminJson({ ok: true });
     }
 
+    if (url.pathname === "/admin/archive-bulk" && request.method === "POST") {
+      const payload = await readPayload(request);
+      const archived = await archiveAdminRegistrations(env.DB, payload.ids);
+      return adminJson({ ok: true, archived });
+    }
+
     return adminJson({ ok: false, error: "Not found" }, 404);
   } catch (error) {
     const status = error instanceof PublicError ? error.status : 500;
@@ -387,6 +393,26 @@ async function archiveAdminRegistration(db, idValue) {
   }
 }
 
+async function archiveAdminRegistrations(db, idValues) {
+  if (!Array.isArray(idValues)) throw new PublicError("Choose at least one registration.");
+  const ids = idValues.map(cleanId).filter(Boolean);
+  const uniqueIds = [...new Set(ids)];
+  if (!uniqueIds.length) throw new PublicError("Choose at least one registration.");
+  if (uniqueIds.length > 100) throw new PublicError("Remove 100 or fewer registrations at a time.");
+
+  const archivedAt = new Date().toISOString();
+  let archived = 0;
+  for (const id of uniqueIds) {
+    const result = await db.prepare(
+      `UPDATE registrations
+       SET archived_at = ?, updated_at = ?
+       WHERE id = ? AND archived_at IS NULL`
+    ).bind(archivedAt, archivedAt, id).run();
+    archived += Number((result.meta && result.meta.changes) || 0);
+  }
+  return archived;
+}
+
 function cleanId(value) {
   if (typeof value !== "string") return "";
   const id = value.trim();
@@ -436,10 +462,11 @@ function renderAdminPage(userEmail) {
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 main{max-width:1180px;margin:0 auto;padding:28px 18px 44px}.top{display:flex;gap:16px;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
 h1{font-family:Georgia,serif;font-weight:500;font-size:34px;line-height:1;margin:0}.meta{color:var(--soft);font-size:13px;margin-top:7px}
-.tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.search{min-width:260px;border:1px solid var(--line);background:#fff;border-radius:6px;padding:10px 12px;color:var(--ink)}
+.tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.bulk{display:none;align-items:center;gap:10px;margin:0 0 14px;padding:10px 12px;border:1px solid #dfc5b9;background:#fff7f0;border-radius:8px}.search{min-width:260px;border:1px solid var(--line);background:#fff;border-radius:6px;padding:10px 12px;color:var(--ink)}
 .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:9px 12px;font-weight:650;text-decoration:none;cursor:pointer}.btn:hover{border-color:var(--rust)}
 .btn--rust{background:var(--rust);border-color:var(--rust);color:white}.btn--danger{color:#8a2f21}.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 table{width:100%;border-collapse:collapse}th,td{padding:12px 11px;border-bottom:1px solid #eadfcb;text-align:left;vertical-align:top}th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#756852;background:#f5efdf}
+th.select,td.select{width:42px;text-align:center}.rowcheck,.selectall{width:17px;height:17px;accent-color:var(--rust)}
 tr.is-archived{opacity:.58}.name{font-weight:700}.small{font-size:12px;color:var(--soft)}.chip{display:inline-flex;margin:0 4px 4px 0;padding:4px 7px;border-radius:999px;background:#eef2e7;color:#34401f;font-size:12px;font-weight:650}
 .status{font-size:12px;color:var(--soft)}.actions{display:flex;gap:7px;flex-wrap:wrap}.empty{padding:32px;color:var(--soft);text-align:center}.error{display:none;margin:0 0 14px;padding:12px;border:1px solid #dfb2a3;background:#fff4ef;color:#7e2e20;border-radius:8px}
 dialog{width:min(520px,calc(100vw - 28px));border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);padding:0;box-shadow:0 30px 90px rgba(0,0,0,.2)}dialog::backdrop{background:rgba(20,18,13,.45)}
@@ -463,10 +490,14 @@ dialog{width:min(520px,calc(100vw - 28px));border:1px solid var(--line);border-r
     </div>
   </div>
   <p class="error" id="error"></p>
+  <div class="bulk" id="bulkBar">
+    <strong id="selectedCount">0 selected</strong>
+    <button class="btn btn--danger" id="bulkRemove">Remove selected</button>
+  </div>
   <div class="panel">
     <table>
-      <thead><tr><th>Name</th><th>Email</th><th>Sessions</th><th>Signed Up</th><th>Email</th><th>Actions</th></tr></thead>
-      <tbody id="rows"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+      <thead><tr><th class="select"><input class="selectall" id="selectAll" type="checkbox" aria-label="Select all active rows"></th><th>Name</th><th>Email</th><th>Sessions</th><th>Signed Up</th><th>Email</th><th>Actions</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="7" class="empty">Loading...</td></tr></tbody>
     </table>
   </div>
 </main>
@@ -493,20 +524,26 @@ dialog{width:min(520px,calc(100vw - 28px));border:1px solid var(--line);border-r
   </form>
 </dialog>
 <script>
-const state={rows:[],filter:""};
-const rowsEl=document.getElementById("rows"),errorEl=document.getElementById("error"),editor=document.getElementById("editor");
+const state={rows:[],filter:"",selected:new Set()};
+const rowsEl=document.getElementById("rows"),errorEl=document.getElementById("error"),editor=document.getElementById("editor"),selectAll=document.getElementById("selectAll"),bulkBar=document.getElementById("bulkBar"),selectedCount=document.getElementById("selectedCount");
 const fmt=new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"});
 function showError(message){errorEl.textContent=message;errorEl.style.display=message?"block":"none"}
 function esc(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c]))}
 function date(value){if(!value)return "";const d=new Date(value);return Number.isNaN(d.getTime())?"":fmt.format(d)}
 async function api(path,options){showError("");const res=await fetch(path,{headers:{"Content-Type":"application/json"},...options});const data=await res.json().catch(()=>({}));if(!res.ok||!data.ok)throw new Error(data.error||"Request failed");return data}
-async function load(){const archived=document.getElementById("showArchived").checked;document.getElementById("exportLink").href="/admin/export.csv"+(archived?"?archived=1":"");const data=await api("/admin/data"+(archived?"?archived=1":""));state.rows=data.rows;render()}
-function render(){const q=state.filter.trim().toLowerCase();const rows=state.rows.filter(r=>!q||[r.firstName,r.lastName,r.email,(r.sessions||[]).join(" ")].join(" ").toLowerCase().includes(q));if(!rows.length){rowsEl.innerHTML='<tr><td colspan="6" class="empty">No registrations found.</td></tr>';return}rowsEl.innerHTML=rows.map(r=>\`<tr class="\${r.archivedAt?"is-archived":""}"><td><div class="name">\${esc(r.firstName)} \${esc(r.lastName)}</div><div class="small">Updated \${date(r.updatedAt)}</div></td><td><a href="mailto:\${esc(r.email)}">\${esc(r.email)}</a></td><td>\${(r.sessions||[]).map(s=>\`<span class="chip">\${esc(s)}</span>\`).join("")}</td><td><div>\${date(r.createdAt)}</div><div class="small">\${r.archivedAt?"Removed "+date(r.archivedAt):""}</div></td><td><div class="status">Confirmation: \${esc(r.emailStatus||"")}</div><div class="status">Last sent: \${date(r.lastConfirmationSentAt)||"n/a"}</div><div class="status">Resends: \${r.resendCount||0}</div></td><td><div class="actions">\${r.archivedAt?"":\`<button class="btn" data-edit="\${esc(r.id)}">Edit</button><button class="btn btn--danger" data-archive="\${esc(r.id)}">Remove</button>\`}</div></td></tr>\`).join("")}
+async function load(){const archived=document.getElementById("showArchived").checked;document.getElementById("exportLink").href="/admin/export.csv"+(archived?"?archived=1":"");const data=await api("/admin/data"+(archived?"?archived=1":""));state.rows=data.rows;state.selected.clear();render()}
+function visibleRows(){const q=state.filter.trim().toLowerCase();return state.rows.filter(r=>!q||[r.firstName,r.lastName,r.email,(r.sessions||[]).join(" ")].join(" ").toLowerCase().includes(q))}
+function activeVisibleRows(){return visibleRows().filter(r=>!r.archivedAt)}
+function updateBulk(){const selected=[...state.selected].filter(id=>state.rows.some(r=>r.id===id&&!r.archivedAt));state.selected=new Set(selected);const count=state.selected.size;bulkBar.style.display=count?"flex":"none";selectedCount.textContent=count+" selected";const active=activeVisibleRows();selectAll.checked=active.length>0&&active.every(r=>state.selected.has(r.id));selectAll.indeterminate=count>0&&!selectAll.checked}
+function render(){const rows=visibleRows();if(!rows.length){rowsEl.innerHTML='<tr><td colspan="7" class="empty">No registrations found.</td></tr>';updateBulk();return}rowsEl.innerHTML=rows.map(r=>\`<tr class="\${r.archivedAt?"is-archived":""}"><td class="select">\${r.archivedAt?"":\`<input class="rowcheck" type="checkbox" data-select="\${esc(r.id)}" aria-label="Select \${esc(r.firstName)} \${esc(r.lastName)}" \${state.selected.has(r.id)?"checked":""}>\`}</td><td><div class="name">\${esc(r.firstName)} \${esc(r.lastName)}</div><div class="small">Updated \${date(r.updatedAt)}</div></td><td><a href="mailto:\${esc(r.email)}">\${esc(r.email)}</a></td><td>\${(r.sessions||[]).map(s=>\`<span class="chip">\${esc(s)}</span>\`).join("")}</td><td><div>\${date(r.createdAt)}</div><div class="small">\${r.archivedAt?"Removed "+date(r.archivedAt):""}</div></td><td><div class="status">Confirmation: \${esc(r.emailStatus||"")}</div><div class="status">Last sent: \${date(r.lastConfirmationSentAt)||"n/a"}</div><div class="status">Resends: \${r.resendCount||0}</div></td><td><div class="actions">\${r.archivedAt?"":\`<button class="btn" data-edit="\${esc(r.id)}">Edit</button><button class="btn btn--danger" data-archive="\${esc(r.id)}">Remove</button>\`}</div></td></tr>\`).join("");updateBulk()}
 function editRow(id){const r=state.rows.find(row=>row.id===id);if(!r)return;document.getElementById("editId").value=r.id;document.getElementById("editFirst").value=r.firstName||"";document.getElementById("editLast").value=r.lastName||"";document.getElementById("editEmail").value=r.email||"";document.getElementById("editIntro").checked=(r.sessions||[]).includes("Intro Talk");document.getElementById("editDay").checked=(r.sessions||[]).includes("Day Quest");editor.showModal()}
 document.getElementById("search").addEventListener("input",e=>{state.filter=e.target.value;render()});
 document.getElementById("refresh").addEventListener("click",()=>load().catch(e=>showError(e.message)));
 document.getElementById("showArchived").addEventListener("change",()=>load().catch(e=>showError(e.message)));
+selectAll.addEventListener("change",()=>{const rows=activeVisibleRows();rows.forEach(r=>selectAll.checked?state.selected.add(r.id):state.selected.delete(r.id));render()});
+rowsEl.addEventListener("change",e=>{const box=e.target.closest("[data-select]");if(!box)return;box.checked?state.selected.add(box.dataset.select):state.selected.delete(box.dataset.select);updateBulk()});
 rowsEl.addEventListener("click",async e=>{const edit=e.target.closest("[data-edit]"),archive=e.target.closest("[data-archive]");if(edit)editRow(edit.dataset.edit);if(archive&&confirm("Remove this registration from the active list?")){try{await api("/admin/archive",{method:"POST",body:JSON.stringify({id:archive.dataset.archive})});await load()}catch(err){showError(err.message)}}});
+document.getElementById("bulkRemove").addEventListener("click",async()=>{const ids=[...state.selected];if(!ids.length)return;if(confirm("Remove "+ids.length+" selected registration"+(ids.length===1?"":"s")+" from the active list?")){try{await api("/admin/archive-bulk",{method:"POST",body:JSON.stringify({ids})});await load()}catch(err){showError(err.message)}}});
 document.getElementById("saveEdit").addEventListener("click",async e=>{e.preventDefault();const sessions=[];if(document.getElementById("editIntro").checked)sessions.push("Intro Talk");if(document.getElementById("editDay").checked)sessions.push("Day Quest");try{await api("/admin/update",{method:"POST",body:JSON.stringify({id:document.getElementById("editId").value,firstName:document.getElementById("editFirst").value,lastName:document.getElementById("editLast").value,email:document.getElementById("editEmail").value,sessions})});editor.close();await load()}catch(err){showError(err.message)}});
 load().catch(e=>showError(e.message));
 </script>
