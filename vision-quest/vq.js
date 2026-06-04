@@ -134,17 +134,17 @@
     form.style.display='none';
     confirm.querySelector('.who').textContent = first ? (', ' + first) : '';
     var sessions = ((result && result.sessions) || []).join(' + ');
-    var message = "You're registered for " + sessions + ". We emailed the details to you.";
+    var message = "You're registered for " + sessions + ". We've emailed event details to you.";
     var resend = doc.getElementById('rsvpResend');
 
     if(result && result.status === 'already_registered'){
-      message = "You're already registered for " + sessions + ". We'll send any event changes to this email. If the confirmation email did not arrive, resend it below.";
+      message = "You're already registered for " + sessions + ". We'll email any event changes to you. If the confirmation email did not arrive, resend it below.";
       if(resend) resend.style.display='inline-block';
     }else if(result && result.status === 'confirmation_resent'){
-      message = "We resent the confirmation email for " + sessions + ".";
+      message = "We resent event details for " + sessions + ".";
       if(resend) resend.style.display='none';
     }else if(result && result.status === 'registration_updated'){
-      message = "You're now registered for " + sessions + ". We emailed the updated details to you.";
+      message = "You're now registered for " + sessions + ". We've emailed updated event details to you.";
       if(resend) resend.style.display='none';
     }else if(resend){
       resend.style.display='none';

@@ -27,7 +27,7 @@
   if (!location.hash) window.scrollTo(0, 0);
   window.addEventListener('pageshow', function(){ if (!location.hash) setTimeout(function(){ window.scrollTo(0, 0); }, 0); });
 </script>
-<link rel="stylesheet" href="vq.css?v=31">
+<link rel="stylesheet" href="vq.css?v=32">
 </head>
 <body data-mood="warm" data-scope="all">
 
@@ -235,10 +235,19 @@
       </div>
     </form>
     <div class="modal-confirm" id="rsvpConfirm" style="display:none;">
-      <div class="seal">✦</div>
+      <div class="seal" aria-hidden="true">
+        <svg viewBox="0 0 64 64" fill="none"><path d="M32 7v15M32 42v15M7 32h15M42 32h15" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path><path d="M18 18l7 7M39 39l7 7M46 18l-7 7M25 39l-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".75"></path><circle cx="32" cy="32" r="9" stroke="currentColor" stroke-width="2.4"></circle><circle cx="32" cy="32" r="3.2" fill="currentColor"></circle></svg>
+      </div>
       <h3>Thank you<span class="who"></span>.</h3>
       <p class="sub" id="rsvpConfirmMessage">You're registered. We emailed the details to you.</p>
-      <p class="modal-signal">Want quick reminders? <a href="https://signal.group/#CjQKINCHcZNTL2_ZhChY_wTXyT-paNAi6DUUTFLMLYt8_KeKEhDk1pof_pc9PAumTFsIufuE" target="_blank" rel="noopener">Join the Healthy Hour Signal group</a>. Email remains the official source for registration details.</p>
+      <div class="modal-connect" aria-label="Healthy Hour links">
+        <span>Stay connected with Healthy Hour on</span>
+        <a href="https://signal.group/#CjQKINCHcZNTL2_ZhChY_wTXyT-paNAi6DUUTFLMLYt8_KeKEhDk1pof_pc9PAumTFsIufuE" target="_blank" rel="noopener">Signal</a>
+        <span>and</span>
+        <a class="modal-connect__icon" href="https://www.instagram.com/mental_coherence/" target="_blank" rel="noopener" aria-label="Instagram">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.4" cy="6.6" r="1" fill="currentColor" stroke="none"></circle></svg>
+        </a>
+      </div>
       <p class="sopt-note" id="rsvpConfirmError" role="alert"></p>
       <div class="modal__row" style="justify-content:center;">
         <button type="button" class="btn-ghost" id="rsvpResend" style="display:none;">Resend confirmation</button>
