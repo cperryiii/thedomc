@@ -8,7 +8,7 @@ Fast admin URL:
 
 https://vision-quest-registration.cperryiii.workers.dev/admin/
 
-This path is protected by Cloudflare Access and only allows `christopher@thedomc.org`.
+This path is protected by Cloudflare Access and only allows `cpiii@thedomc.org`.
 Use the one-time PIN sent to that email address.
 
 Cloudflare Access configuration:
@@ -16,11 +16,11 @@ Cloudflare Access configuration:
 - Application: `Vision Quest Admin`
 - Protected path: `vision-quest-registration.cperryiii.workers.dev/admin*`
 - Allowed identity provider: One-time PIN
-- Allowed email: `christopher@thedomc.org`
+- Allowed email: `cpiii@thedomc.org`
 - Application session duration: `72h`
 - Policy session duration: `72h`
 
-The Worker also validates the Cloudflare Access JWT server-side and rejects any admin request whose verified email is not `christopher@thedomc.org`. This check is not client-side.
+The Worker also validates the Cloudflare Access JWT server-side and rejects any admin request whose verified email is not `cpiii@thedomc.org`. This check is not client-side.
 
 Cloudflare D1 database: `vision_quest_registrations`  
 Table: `registrations`
