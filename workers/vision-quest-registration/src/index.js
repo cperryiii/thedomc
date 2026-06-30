@@ -13,10 +13,21 @@ const INTRO_EVENT = {
 
 const DAY_EVENT = {
   title: "Day Quest",
-  date: "Next date shared soon",
+  date: "Sunday, July 19, 2026",
   time: "7:00 AM - 2:00 PM Arizona time",
-  location: "Shared with confirmed registrants",
-  note: "A day quest is required for anyone considering the full Wilderness Quest."
+  location: "Legends of Superior Trails, near Superior, Arizona",
+  arrival: "Plan to arrive a little before 7:00 AM so we can start on time and keep solo time during the coolest temperatures. After turning right from Route 60 toward Legends of Superior Trails, drive a short bit, look for Michele's Mazda CX-5, and park there. Michele will drive the group the rest of the way, about 5 minutes, because the road is rocky.",
+  note: "A day quest is required for anyone considering the full Wilderness Quest.",
+  bring: [
+    "A gallon jug of water with electrolytes",
+    "Journal",
+    "Sun protection, such as sunscreen, a hat, or clothing to cover",
+    "An offering to the land, such as tobacco, oats, seeds, or something biodegradable",
+    "Anything needed for basic comfort",
+    "An open spirit"
+  ],
+  preparation: "Hydrate well the day before and the morning of. Lemon water is a good option for electrolytes. Lunch will be provided after solo time. Michele suggests a light, plant-based morning meal if possible, such as nuts, fruit, yogurt, or steel cut oats. You will be fasting from food during solo time.",
+  phone: "During solo time, and for the day unless there is an urgent matter, please turn phones off so there are no distractions."
 };
 
 class PublicError extends Error {
@@ -794,14 +805,28 @@ function introSectionHtml() {
 }
 
 function daySectionHtml() {
+  const bringItems = DAY_EVENT.bring
+    .map((item) => `<li style="margin:0 0 7px;">${escapeHtml(item)}</li>`)
+    .join("");
+
   return `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:22px 0;border:1px solid #e1d5bd;border-radius:8px;background:#fffdf7;">
-      <tr><td style="padding:18px 18px 8px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">Day Quest</td><td style="padding:18px 18px 8px;">${DAY_EVENT.date} - ${DAY_EVENT.time}</td></tr>
-      <tr><td style="padding:8px 18px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">Where</td><td style="padding:8px 18px;">${DAY_EVENT.location}</td></tr>
-      <tr><td style="padding:8px 18px 18px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">Note</td><td style="padding:8px 18px 18px;">${DAY_EVENT.note}</td></tr>
+      <tr><td style="padding:18px 18px 8px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">Day Quest</td><td style="padding:18px 18px 8px;">${escapeHtml(DAY_EVENT.date)} at ${escapeHtml(DAY_EVENT.time)}</td></tr>
+      <tr><td style="padding:8px 18px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">Where</td><td style="padding:8px 18px;">${escapeHtml(DAY_EVENT.location)}</td></tr>
+      <tr><td style="padding:8px 18px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">Arrival</td><td style="padding:8px 18px;">${escapeHtml(DAY_EVENT.arrival)}</td></tr>
+      <tr><td style="padding:8px 18px 18px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">Note</td><td style="padding:8px 18px 18px;">${escapeHtml(DAY_EVENT.note)}</td></tr>
     </table>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:22px 0;border:1px solid #d8caa9;border-radius:8px;background:#f7f0df;">
-      <tr><td style="padding:18px;"><h2 style="margin:0 0 8px;color:#4a3829;font-family:Georgia,'Times New Roman',serif;font-size:19px;line-height:1.25;font-weight:700;">What happens next</h2><p style="margin:0;color:#51483b;">We will send the confirmed date, location, arrival window, what to bring, and preparation notes as soon as the next day quest is set.</p></td></tr>
+      <tr><td style="padding:18px;"><h2 style="margin:0 0 8px;color:#4a3829;font-family:Georgia,'Times New Roman',serif;font-size:19px;line-height:1.25;font-weight:700;">What to bring</h2><ul style="margin:0;padding-left:20px;color:#51483b;">${bringItems}</ul></td></tr>
+    </table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:22px 0;border:1px solid #e1d5bd;border-radius:8px;background:#fffdf7;">
+      <tr>
+        <td style="padding:18px;">
+          <h2 style="margin:0 0 8px;color:#4a3829;font-family:Georgia,'Times New Roman',serif;font-size:19px;line-height:1.25;font-weight:700;">Before you arrive</h2>
+          <p style="margin:0 0 12px;color:#51483b;">${escapeHtml(DAY_EVENT.preparation)}</p>
+          <p style="margin:0;color:#51483b;">${escapeHtml(DAY_EVENT.phone)}</p>
+        </td>
+      </tr>
     </table>
   `;
 }
@@ -817,10 +842,16 @@ function introSectionText() {
 function daySectionText() {
   return [
     DAY_EVENT.title,
-    `When: ${DAY_EVENT.date} - ${DAY_EVENT.time}`,
+    `When: ${DAY_EVENT.date} at ${DAY_EVENT.time}`,
     `Where: ${DAY_EVENT.location}`,
+    `Arrival: ${DAY_EVENT.arrival}`,
     DAY_EVENT.note,
-    "We will send the confirmed date, location, arrival window, what to bring, and preparation notes as soon as the next day quest is set.",
+    "",
+    "What to bring:",
+    ...DAY_EVENT.bring.map((item) => `- ${item}`),
+    "",
+    `Before you arrive: ${DAY_EVENT.preparation}`,
+    DAY_EVENT.phone,
     ""
   ].join("\n");
 }

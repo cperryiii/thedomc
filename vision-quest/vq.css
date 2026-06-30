@@ -119,8 +119,7 @@ section{ position:relative; }
 .journey__note{ display:inline-grid; gap:.18rem; margin:1.15rem auto 0; padding:.9rem 1.2rem; border-top:1px solid rgba(216,196,154,.45); border-bottom:1px solid rgba(216,196,154,.28); }
 .journey__note p{ margin:0; color:var(--sand); font-family:var(--serif); font-style:italic; font-size:1.32rem; line-height:1.35; }
 .steps{ display:grid; gap:1.1rem; }
-.step{ display:grid; grid-template-columns:auto 1fr 290px; gap:clamp(1.2rem,3vw,2.4rem); align-items:stretch; background:rgba(255,255,255,.03); border:1px solid rgba(231,217,189,.16); border-radius:16px; padding:clamp(1.5rem,3.2vw,2.3rem); }
-.step__num{ font-family:var(--serif); font-weight:400; font-size:clamp(2.4rem,5.5vw,3.8rem); line-height:.82; color:var(--rust-lt); }
+.step{ display:grid; grid-template-columns:minmax(0,1fr) 290px; gap:clamp(1.2rem,3vw,2.4rem); align-items:stretch; background:rgba(255,255,255,.03); border:1px solid rgba(231,217,189,.16); border-radius:16px; padding:clamp(1.5rem,3.2vw,2.3rem); }
 .step__main h3{ font-family:var(--serif); font-weight:600; font-size:clamp(1.75rem,3.3vw,2.4rem); color:#fff; margin:0 0 .5rem; letter-spacing:-.01em; }
 .step__main p:not(.step__loc){ margin:0; color:#E4D9C2; font-size:1.26rem; font-weight:500; line-height:1.55; max-width:40rem; }
 .step__main .em{ color:var(--gold); font-weight:600; }
@@ -147,7 +146,6 @@ section{ position:relative; }
   /* single column so the text, location box and date box all share the same
      width and left edge — and the gaps above/below the location box match */
   .step{ grid-template-columns:1fr; gap:1rem; padding:1.5rem 1.4rem; }
-  .step__num{ font-size:2.3rem; line-height:1; }
   .step__main p{ max-width:none; }
   .step__loc{ margin-top:2rem; }   /* match the gap below, between location & date */
   .step__loc + .step__loc{ margin-top:.6rem; }
@@ -305,7 +303,6 @@ body[data-mood="warm"]{
 .journey.is-light .journey__head h2{ color:var(--lt-ink); text-shadow:0 1px 12px rgba(227,226,223,.85); }
 .journey.is-light .journey__head p{ color:var(--lt-ink-soft); text-shadow:0 1px 10px rgba(227,226,223,.8); }
 .journey.is-light .step{ background:var(--lt-card); border-color:var(--lt-border); box-shadow:0 2px 5px var(--lt-shadow), 0 30px 60px -30px rgba(40,48,28,.42); }
-.journey.is-light .step__num{ color:var(--rust); }
 .journey.is-light .step__main h3{ color:var(--lt-ink); }
 .journey.is-light .step__main p:not(.step__loc){ color:var(--lt-ink-soft); }
 .journey.is-light .step__main .em{ color:var(--rust); }
