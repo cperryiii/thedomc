@@ -116,6 +116,8 @@ section{ position:relative; }
 .journey__head{ text-align:center; max-width:58rem; margin:0 auto clamp(2.5rem,5vw,3.5rem); }
 .journey__head h2{ font-family:var(--serif); font-weight:600; font-size:clamp(2.15rem,4.4vw,3.2rem); color:#fff; margin:0; letter-spacing:-.015em; line-height:1.05; text-wrap:balance; }
 .journey__head p{ color:var(--sand); font-style:italic; font-family:var(--serif); font-size:1.5rem; margin:.7rem 0 0; }
+.journey__note{ display:inline-grid; gap:.18rem; margin:1.15rem auto 0; padding:.9rem 1.2rem; border-top:1px solid rgba(216,196,154,.45); border-bottom:1px solid rgba(216,196,154,.28); }
+.journey__note p{ margin:0; color:var(--sand); font-family:var(--serif); font-style:italic; font-size:1.32rem; line-height:1.35; }
 .steps{ display:grid; gap:1.1rem; }
 .step{ display:grid; grid-template-columns:auto 1fr 290px; gap:clamp(1.2rem,3vw,2.4rem); align-items:stretch; background:rgba(255,255,255,.03); border:1px solid rgba(231,217,189,.16); border-radius:16px; padding:clamp(1.5rem,3.2vw,2.3rem); }
 .step__num{ font-family:var(--serif); font-weight:400; font-size:clamp(2.4rem,5.5vw,3.8rem); line-height:.82; color:var(--rust-lt); }
@@ -159,6 +161,8 @@ section{ position:relative; }
   .hero__cta{ width:100%; flex-direction:column; align-items:stretch; }
   .hero__cta .btn{ width:100%; text-align:center; }
   .journey__head p{ font-size:1.12rem; }
+  .journey__note{ display:grid; margin-top:1rem; padding:.8rem .3rem; }
+  .journey__note p{ font-size:1.08rem; }
   .step__main p{ font-size:1.06rem; }
   .selection__inner{ padding:3.5rem 1.25rem; }
   .guide__body p,.guide__cred li,.offering p{ font-size:1.08rem; }

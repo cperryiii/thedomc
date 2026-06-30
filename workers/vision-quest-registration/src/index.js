@@ -14,7 +14,7 @@ const INTRO_EVENT = {
 const DAY_EVENT = {
   title: "Day Quest",
   date: "Next date shared soon",
-  time: "7:00 AM to 2:00 PM Arizona time",
+  time: "7:00 AM - 2:00 PM Arizona time",
   location: "Shared with confirmed registrants",
   note: "A day quest is required for anyone considering the full Wilderness Quest."
 };
