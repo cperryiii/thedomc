@@ -73,7 +73,7 @@ section{ position:relative; }
   radial-gradient(86% 74% at 50% 50%, rgba(17,20,13,.48) 0%, rgba(17,20,13,.22) 46%, rgba(17,20,13,0) 78%),
   linear-gradient(180deg, rgba(17,20,13,.36) 0%, rgba(17,20,13,0) 20%, rgba(17,20,13,0) 70%, rgba(17,20,13,.20) 100%); }
 .hero__inner{ position:relative; z-index:2; text-align:center; color:var(--cream); padding:6rem 1.25rem 4rem; max-width:62rem; }
-.hero__title{ font-family:var(--serif); font-weight:500; color:#fff; font-size:clamp(2.8rem,12vw,9.5rem); line-height:.92; letter-spacing:-.02em; white-space:nowrap; margin:0; text-shadow:0 2px 40px rgba(0,0,0,.35); }
+.hero__title{ font-family:var(--serif); font-weight:500; color:#fff; font-size:clamp(2.8rem,12vw,9.5rem); line-height:.92; letter-spacing:-.02em; white-space:normal; text-wrap:balance; margin:0; text-shadow:0 2px 40px rgba(0,0,0,.35); }
 .hero__title em{ font-style:italic; font-weight:400; color:var(--gold); }
 .hero__tag{ font-family:var(--sans); font-size:clamp(.72rem,1.4vw,.82rem); letter-spacing:.3em; text-transform:uppercase; color:#EBD9AE; margin:1.5rem 0 0; text-shadow:0 0 18px rgba(216,196,154,.55), 0 1px 12px rgba(0,0,0,.6); }
 .hero__by{ font-family:var(--serif); font-style:italic; font-size:clamp(1.25rem,2.6vw,1.7rem); color:#F8EFD9; margin:.5rem 0 0; text-shadow:0 0 22px rgba(245,233,211,.4), 0 2px 22px rgba(0,0,0,.8), 0 1px 4px rgba(0,0,0,.6); }
@@ -174,7 +174,7 @@ section{ position:relative; }
 
 /* ============================================================ SELECTION */
 .selection{ position:relative; min-height:44vh; display:flex; align-items:center; justify-content:center; overflow:hidden; background:var(--black); color:var(--cream); text-align:center; }
-.selection__bg{ position:absolute; inset:-12% 0; z-index:0; background-size:cover; background-position:center 45%; will-change:transform; }
+.selection__bg{ position:absolute; inset:-12% 0; z-index:0; background-size:cover; background-position:center 52%; will-change:transform; }
 .selection__veil{ position:absolute; inset:0; z-index:1; background:linear-gradient(180deg, rgba(38,30,18,.56), rgba(28,22,14,.62)); }
 .selection__inner{ position:relative; z-index:2; max-width:48rem; padding:3.2rem 1.5rem; }
 .selection__inner .q{ font-family:var(--serif); font-weight:500; font-style:italic; font-size:clamp(1.8rem,4vw,3rem); line-height:1.28; color:#fff; margin:0; text-wrap:balance; }

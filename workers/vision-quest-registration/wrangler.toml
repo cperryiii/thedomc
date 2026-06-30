@@ -6,7 +6,7 @@ workers_dev = true
 [vars]
 ADMIN_EMAIL = "cperryiii@yahoo.com"
 ADMIN_ALLOWED_EMAIL = "cpiii@thedomc.org"
-FROM_EMAIL = "Vision Quest <visionquest@thedomc.org>"
+FROM_EMAIL = "Wilderness Quest <visionquest@thedomc.org>"
 SEND_ADMIN_EMAIL = "false"
 CF_ACCESS_TEAM_DOMAIN = "sonaura.cloudflareaccess.com"
 CF_ACCESS_AUD = "9ddc6bde8a5194d14987112d0dc8d8ec1e0a8275e289d1dd0299748a542741cc"

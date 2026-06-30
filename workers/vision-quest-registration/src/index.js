@@ -1,20 +1,22 @@
 const SESSION_ORDER = ["Intro Talk", "Day Quest"];
 const SESSION_SET = new Set(SESSION_ORDER);
+const PUBLIC_SESSION_ORDER = ["Day Quest"];
+const PUBLIC_SESSION_SET = new Set(PUBLIC_SESSION_ORDER);
 
 const INTRO_EVENT = {
-  title: "Vision Quest Intro Talk & Q&A",
-  date: "Saturday, June 20, 2026",
-  time: "10:00 AM Arizona time",
-  location: "Evelyn Hallman Park, 1900 N College Ave, Tempe, AZ 85288",
-  directions: "Park in the dedicated lot, cross the little footbridge, and gather at the covered ramada right on the water."
+  title: "Intro Talk & Q&A",
+  date: "Completed",
+  time: "",
+  location: "",
+  directions: "The intro talk has already taken place."
 };
 
 const DAY_EVENT = {
   title: "Day Quest",
-  date: "Saturday, June 27, 2026",
-  time: "AM + PM schedule",
-  location: "Shared after the Intro Talk",
-  note: "This full-day experience is required for anyone considering the full Vision Quest."
+  date: "Next date shared soon",
+  time: "7:00 AM to 2:00 PM Arizona time",
+  location: "Shared with confirmed registrants",
+  note: "A day quest is required for anyone considering the full Wilderness Quest."
 };
 
 class PublicError extends Error {
@@ -81,14 +83,19 @@ export default {
               ok: true,
               status: "already_registered",
               alreadyRegistered: true,
-              sessions: existing.sessions
+              sessions: registration.sessions
             },
             200,
             cors
           );
         }
 
-        const delivery = await sendRegistrationEmails(env, confirmedRegistration, existing.id, existing.createdAt, {
+        const responseSessions = registration.sessions.length ? registration.sessions : mergedSessions;
+        const emailRegistration = {
+          ...confirmedRegistration,
+          sessions: responseSessions
+        };
+        const delivery = await sendRegistrationEmails(env, emailRegistration, existing.id, existing.createdAt, {
           adminReason: hasNewSessions ? "updated" : "resend"
         });
 
@@ -136,7 +143,7 @@ export default {
             resent: resendRequested && !hasNewSessions,
             updated: hasNewSessions,
             id: existing.id,
-            sessions: mergedSessions
+            sessions: responseSessions
           },
           200,
           cors
@@ -456,7 +463,7 @@ function renderAdminPage(userEmail) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow,noarchive">
-<title>Vision Quest Registrations</title>
+<title>Wilderness Quest Registrations</title>
 <style>
 :root{color-scheme:light;--bg:#f4f1e8;--panel:#fffdf7;--ink:#251f16;--soft:#6e6252;--line:#ddd0b8;--rust:#9a4a2b;--green:#53652e}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -479,7 +486,7 @@ dialog{width:min(520px,calc(100vw - 28px));border:1px solid var(--line);border-r
 <main>
   <div class="top">
     <div>
-      <h1>Vision Quest Registrations</h1>
+      <h1>Wilderness Quest Registrations</h1>
       <div class="meta">Signed in as ${escapeHtml(userEmail)} · private admin view</div>
     </div>
     <div class="tools">
@@ -616,7 +623,7 @@ function validateRegistration(payload) {
   const firstName = cleanName(payload.firstName);
   const lastName = cleanName(payload.lastName);
   const email = cleanEmail(payload.email);
-  const sessions = normalizeSessions(payload.sessions);
+  const sessions = normalizePublicSessions(payload.sessions);
 
   if (!firstName) throw new PublicError("First name is required.");
   if (!lastName) throw new PublicError("Last name is required.");
@@ -646,6 +653,17 @@ function normalizeSessions(value) {
     }
   }
   return SESSION_ORDER.filter((session) => seen.has(session));
+}
+
+function normalizePublicSessions(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  for (const session of value) {
+    if (typeof session === "string" && PUBLIC_SESSION_SET.has(session)) {
+      seen.add(session);
+    }
+  }
+  return PUBLIC_SESSION_ORDER.filter((session) => seen.has(session));
 }
 
 async function findExistingRegistration(db, email) {
@@ -725,16 +743,16 @@ function buildRegistrantEmail(registration, env) {
   const hasIntro = registration.sessions.includes("Intro Talk");
   const hasDay = registration.sessions.includes("Day Quest");
   const title = hasIntro && hasDay
-    ? "Vision Quest registration confirmed"
+    ? "Wilderness Quest registration confirmed"
     : hasIntro
-      ? "Vision Quest Intro Talk registration"
-      : "Vision Quest Day Quest registration received";
+      ? "Wilderness Quest Intro Talk registration"
+      : "Wilderness Quest Day Quest registration received";
 
   const introHtml = hasIntro ? introSectionHtml(env) : "";
   const dayHtml = hasDay ? daySectionHtml() : "";
   const introText = hasIntro ? introSectionText(env) : "";
   const dayText = hasDay ? daySectionText() : "";
-  const attachments = hasIntro ? [introCalendarAttachment(env)] : undefined;
+  const attachments = undefined;
 
   return {
     from: env.FROM_EMAIL,
@@ -745,7 +763,7 @@ function buildRegistrantEmail(registration, env) {
       title,
       body: `
         <p style="margin:0 0 16px;">Hi ${escapeHtml(registration.firstName)},</p>
-        <p style="margin:0 0 20px;">Thank you for registering for the Vision Quest. Your registration is confirmed for: <strong>${escapeHtml(registration.sessions.join(" + "))}</strong>.</p>
+        <p style="margin:0 0 20px;">Thank you for registering for the Wilderness Quest. Your registration is confirmed for: <strong>${escapeHtml(registration.sessions.join(" + "))}</strong>.</p>
         ${introHtml}
         ${dayHtml}
         <p style="margin:22px 0 0;color:#5d5447;">If your plans change, reply to this email so we can keep the group list accurate.</p>
@@ -755,36 +773,23 @@ function buildRegistrantEmail(registration, env) {
     text: [
       `Hi ${registration.firstName},`,
       "",
-      `Thank you for registering for the Vision Quest. Your registration is confirmed for: ${registration.sessions.join(" + ")}.`,
+      `Thank you for registering for the Wilderness Quest. Your registration is confirmed for: ${registration.sessions.join(" + ")}.`,
       "",
       introText,
       dayText,
       "If your plans change, reply to this email so we can keep the group list accurate.",
       "",
-      `Vision Quest page: ${env.SITE_URL}`
+      `Wilderness Quest page: ${env.SITE_URL}`
     ].filter(Boolean).join("\n"),
     attachments
   };
 }
 
-function introSectionHtml(env) {
+function introSectionHtml() {
   return `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:22px 0;border:1px solid #e1d5bd;border-radius:8px;background:#fffdf7;">
-      <tr><td style="padding:18px 18px 8px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">When</td><td style="padding:18px 18px 8px;">${INTRO_EVENT.date} at ${INTRO_EVENT.time}</td></tr>
-      <tr><td style="padding:8px 18px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">Where</td><td style="padding:8px 18px;">${INTRO_EVENT.location}</td></tr>
-      <tr><td style="padding:8px 18px 18px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">Arrival</td><td style="padding:8px 18px 18px;">${INTRO_EVENT.directions}</td></tr>
+      <tr><td style="padding:18px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">Intro</td><td style="padding:18px;">${INTRO_EVENT.directions}</td></tr>
     </table>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:22px 0;border:1px solid #d9cab0;border-radius:8px;background:#f6edda;">
-      <tr>
-        <td style="padding:18px;">
-          <h2 style="margin:0 0 8px;color:#4a3829;font-family:Georgia,'Times New Roman',serif;font-size:19px;line-height:1.25;font-weight:700;">Joining by video</h2>
-          <p style="margin:0 0 16px;color:#51483b;">Out of respect for your digital privacy, we are using Proton Meet for the video option. If you join from a phone or tablet, please download the Proton Meet app beforehand. If you join from a browser, please open the link a few minutes early so you have time to get set up.</p>
-          <a href="${escapeAttr(env.PROTON_MEET_URL || "#")}" style="display:inline-block;border-radius:6px;background:#9A4A2B;color:#fffdf7;font-family:Arial,sans-serif;font-size:13px;font-weight:700;text-decoration:none;padding:12px 18px;">Join by Proton Meet</a>
-          <a href="${escapeAttr(env.MAP_URL)}" style="display:inline-block;margin-left:10px;border-radius:6px;background:#566428;color:#fffdf7;font-family:Arial,sans-serif;font-size:13px;font-weight:700;text-decoration:none;padding:12px 18px;">See Map</a>
-        </td>
-      </tr>
-    </table>
-    <p style="margin:0 0 18px;color:#6a5f50;font-size:14px;">A calendar file is attached for the Intro Talk.</p>
   `;
 }
 
@@ -796,20 +801,15 @@ function daySectionHtml() {
       <tr><td style="padding:8px 18px 18px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">Note</td><td style="padding:8px 18px 18px;">${DAY_EVENT.note}</td></tr>
     </table>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:22px 0;border:1px solid #d8caa9;border-radius:8px;background:#f7f0df;">
-      <tr><td style="padding:18px;"><h2 style="margin:0 0 8px;color:#4a3829;font-family:Georgia,'Times New Roman',serif;font-size:19px;line-height:1.25;font-weight:700;">What happens next</h2><p style="margin:0;color:#51483b;">Please keep June 27 open for the full day. After the Intro Talk, we will send the location, arrival window, what to bring, and preparation notes.</p></td></tr>
+      <tr><td style="padding:18px;"><h2 style="margin:0 0 8px;color:#4a3829;font-family:Georgia,'Times New Roman',serif;font-size:19px;line-height:1.25;font-weight:700;">What happens next</h2><p style="margin:0;color:#51483b;">We will send the confirmed date, location, arrival window, what to bring, and preparation notes as soon as the next day quest is set.</p></td></tr>
     </table>
   `;
 }
 
-function introSectionText(env) {
+function introSectionText() {
   return [
     INTRO_EVENT.title,
-    `When: ${INTRO_EVENT.date} at ${INTRO_EVENT.time}`,
-    `Where: ${INTRO_EVENT.location}`,
-    `Arrival: ${INTRO_EVENT.directions}`,
-    "Video: We are using Proton Meet for digital privacy. Please open the link a few minutes early if joining from a browser.",
-    `Join by Proton Meet: ${env.PROTON_MEET_URL || ""}`,
-    `See Map: ${env.MAP_URL}`,
+    INTRO_EVENT.directions,
     ""
   ].join("\n");
 }
@@ -820,13 +820,13 @@ function daySectionText() {
     `When: ${DAY_EVENT.date} - ${DAY_EVENT.time}`,
     `Where: ${DAY_EVENT.location}`,
     DAY_EVENT.note,
-    "Please keep June 27 open for the full day. After the Intro Talk, we will send the location, arrival window, what to bring, and preparation notes.",
+    "We will send the confirmed date, location, arrival window, what to bring, and preparation notes as soon as the next day quest is set.",
     ""
   ].join("\n");
 }
 
 function buildAdminEmail(registration, id, createdAt, env) {
-  const subject = `New Vision Quest registration: ${registration.firstName} ${registration.lastName}`;
+  const subject = `New Wilderness Quest registration: ${registration.firstName} ${registration.lastName}`;
   const sessions = registration.sessions.join(" + ");
 
   return {
@@ -836,7 +836,7 @@ function buildAdminEmail(registration, id, createdAt, env) {
     subject,
     html: emailShell({
       eyebrow: "New registration",
-      title: "Vision Quest registration",
+      title: "Wilderness Quest registration",
       body: `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:18px 0;border:1px solid #e1d5bd;background:#fffdf7;">
           <tr><td style="padding:10px 14px;width:120px;font-weight:700;">Name</td><td style="padding:10px 14px;">${escapeHtml(registration.firstName)} ${escapeHtml(registration.lastName)}</td></tr>
@@ -878,7 +878,7 @@ function emailShell({ eyebrow, title, body, siteUrl }) {
           <tr><td style="padding:28px 34px 8px;">${body}</td></tr>
           <tr>
             <td style="padding:22px 34px 30px;border-top:1px solid #e5dcc9;background:#f5efdf;color:#686152;font-size:14px;">
-              <p style="margin:0 0 6px;">Healthy Hour | Vision Quest 2026</p>
+              <p style="margin:0 0 6px;">Healthy Hour | Wilderness Quest 2026</p>
               <p style="margin:0;">You are receiving this because you registered at <a href="${escapeAttr(siteUrl)}" style="color:#8e5530;">thedomc.org/vision-quest/</a>.</p>
             </td>
           </tr>
@@ -888,41 +888,6 @@ function emailShell({ eyebrow, title, body, siteUrl }) {
   </table>
 </body>
 </html>`;
-}
-
-function introCalendarAttachment(env) {
-  const now = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-  const description = [
-    "Vision Quest Intro Talk and Q&A.",
-    "Join in person at Evelyn Hallman Park or by Proton Meet.",
-    `Proton Meet: ${env.PROTON_MEET_URL || ""}`,
-    `Map: ${env.MAP_URL}`
-  ].join("\\n");
-
-  const ics = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//The DOMC//Vision Quest//EN",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-    "BEGIN:VEVENT",
-    "UID:vision-quest-intro-20260620@thedomc.org",
-    `DTSTAMP:${now}`,
-    "DTSTART:20260620T170000Z",
-    "DTEND:20260620T183000Z",
-    `SUMMARY:${icsEscape(INTRO_EVENT.title)}`,
-    `LOCATION:${icsEscape(INTRO_EVENT.location)}`,
-    `DESCRIPTION:${icsEscape(description)}`,
-    `URL:${env.SITE_URL}`,
-    "END:VEVENT",
-    "END:VCALENDAR"
-  ].join("\r\n");
-
-  return {
-    filename: "vision-quest-intro-june-20.ics",
-    content: btoa(ics),
-    content_type: "text/calendar; charset=utf-8; method=PUBLISH"
-  };
 }
 
 async function sendResend(env, payload) {
@@ -998,12 +963,4 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value || "");
-}
-
-function icsEscape(value) {
-  return String(value)
-    .replaceAll("\\", "\\\\")
-    .replaceAll(";", "\\;")
-    .replaceAll(",", "\\,")
-    .replaceAll("\n", "\\n");
 }
