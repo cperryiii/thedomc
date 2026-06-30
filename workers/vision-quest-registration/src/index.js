@@ -15,7 +15,7 @@ const DAY_EVENT = {
   title: "Day Quest",
   date: "Sunday, July 19, 2026",
   time: "7:00 AM - 2:00 PM Arizona time",
-  location: "Legends of Superior Trails, near Superior, Arizona",
+  location: "Legends of Superior Trails, near Superior, AZ",
   arrival: "Plan to arrive a little before 7:00 AM so we can start on time and keep solo time during the coolest temperatures. After turning right from Route 60 toward Legends of Superior Trails, drive a short bit, look for Michele's Mazda CX-5, and park there. Michele will drive the group the rest of the way, about 5 minutes, because the road is rocky.",
   note: "A day quest is required for anyone considering the full Wilderness Quest.",
   bring: [
