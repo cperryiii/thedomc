@@ -383,26 +383,26 @@ function formatAdminRow(row) {
     archivedAt: row.archived_at || null
   };
   formatted.displaySessions = adminSessionLabels(formatted);
-  formatted.group = adminGroupLabel(formatted);
   return formatted;
 }
 
 function adminSessionLabels(row) {
-  return (row.sessions || []).map((session) => adminSessionLabel(session, row));
+  const sessions = row.sessions || [];
+  const labels = [];
+  if (sessions.includes("Day Quest")) labels.push(adminSessionLabel("Day Quest", row));
+  if (sessions.includes("Intro Talk")) labels.push(adminSessionLabel("Intro Talk", row));
+  for (const session of sessions) {
+    if (session !== "Day Quest" && session !== "Intro Talk") {
+      labels.push(adminSessionLabel(session, row));
+    }
+  }
+  return labels;
 }
 
 function adminSessionLabel(session, row) {
   if (session === "Intro Talk") return "Intro Talk 1";
   if (session === "Day Quest") return isWildernessQuestTwo(row) ? "Wilderness Quest #2" : "Wilderness Quest #1";
   return session;
-}
-
-function adminGroupLabel(row) {
-  const labels = adminSessionLabels(row);
-  if (labels.includes("Wilderness Quest #2")) return "Wilderness Quest #2";
-  if (labels.includes("Wilderness Quest #1")) return "Wilderness Quest #1";
-  if (labels.includes("Intro Talk 1")) return "Intro Talk 1";
-  return "Other";
 }
 
 function isWildernessQuestTwo(row) {
@@ -553,7 +553,7 @@ h1{font-family:Georgia,serif;font-weight:500;font-size:34px;line-height:1;margin
 .btn--rust{background:var(--rust);border-color:var(--rust);color:white}.btn--danger{color:#8a2f21}.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 table{width:100%;border-collapse:collapse}th,td{padding:12px 11px;border-bottom:1px solid #eadfcb;text-align:left;vertical-align:top}th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#756852;background:#f5efdf}
 th.select,td.select{width:42px;text-align:center}.rowcheck,.selectall{width:17px;height:17px;accent-color:var(--rust)}
-tr.is-archived{opacity:.58}.group-row td{padding:10px 12px;background:#efe4cf;color:#654f36;border-top:2px solid #d0b897;border-bottom:1px solid #d0b897;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.name{font-weight:700}.small{font-size:12px;color:var(--soft)}.chip{display:inline-flex;margin:0 4px 4px 0;padding:4px 7px;border-radius:999px;background:#eef2e7;color:#34401f;font-size:12px;font-weight:650}
+tr.is-archived{opacity:.58}.name{font-weight:700}.small{font-size:12px;color:var(--soft)}.chip{display:inline-flex;margin:0 4px 4px 0;padding:4px 7px;border-radius:999px;background:#eef2e7;color:#34401f;font-size:12px;font-weight:650}
 .status{font-size:12px;color:var(--soft)}.actions{display:flex;gap:7px;flex-wrap:wrap}.empty{padding:32px;color:var(--soft);text-align:center}.error{display:none;margin:0 0 14px;padding:12px;border:1px solid #dfb2a3;background:#fff4ef;color:#7e2e20;border-radius:8px}
 dialog{width:min(520px,calc(100vw - 28px));border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);padding:0;box-shadow:0 30px 90px rgba(0,0,0,.2)}dialog::backdrop{background:rgba(20,18,13,.45)}
 .modal{padding:20px}.modal h2{font-family:Georgia,serif;font-weight:500;margin:0 0 14px;font-size:28px}.grid{display:grid;gap:12px}.field label{display:block;font-size:12px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--soft);margin-bottom:5px}
@@ -618,10 +618,10 @@ function esc(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;"
 function date(value){if(!value)return "";const d=new Date(value);return Number.isNaN(d.getTime())?"":fmt.format(d)}
 async function api(path,options){showError("");const res=await fetch(path,{headers:{"Content-Type":"application/json"},...options});const data=await res.json().catch(()=>({}));if(!res.ok||!data.ok)throw new Error(data.error||"Request failed");return data}
 async function load(){const archived=document.getElementById("showArchived").checked;document.getElementById("exportLink").href="/admin/export.csv"+(archived?"?archived=1":"");const data=await api("/admin/data"+(archived?"?archived=1":""));state.rows=data.rows;state.selected.clear();render()}
-function visibleRows(){const q=state.filter.trim().toLowerCase();return state.rows.filter(r=>!q||[r.firstName,r.lastName,r.email,r.group,(r.sessions||[]).join(" "),(r.displaySessions||[]).join(" ")].join(" ").toLowerCase().includes(q))}
+function visibleRows(){const q=state.filter.trim().toLowerCase();return state.rows.filter(r=>!q||[r.firstName,r.lastName,r.email,(r.sessions||[]).join(" "),(r.displaySessions||[]).join(" ")].join(" ").toLowerCase().includes(q))}
 function activeVisibleRows(){return visibleRows().filter(r=>!r.archivedAt)}
 function updateBulk(){const selected=[...state.selected].filter(id=>state.rows.some(r=>r.id===id&&!r.archivedAt));state.selected=new Set(selected);const count=state.selected.size;bulkBar.style.display=count?"flex":"none";selectedCount.textContent=count+" selected";const active=activeVisibleRows();selectAll.checked=active.length>0&&active.every(r=>state.selected.has(r.id));selectAll.indeterminate=count>0&&!selectAll.checked}
-function render(){const rows=visibleRows();if(!rows.length){rowsEl.innerHTML='<tr><td colspan="7" class="empty">No registrations found.</td></tr>';updateBulk();return}let lastGroup="";rowsEl.innerHTML=rows.map(r=>{const group=r.group||"Other";const divider=group!==lastGroup?\`<tr class="group-row"><td colspan="7">\${esc(group)}</td></tr>\`:"";lastGroup=group;return divider+\`<tr class="\${r.archivedAt?"is-archived":""}"><td class="select">\${r.archivedAt?"":\`<input class="rowcheck" type="checkbox" data-select="\${esc(r.id)}" aria-label="Select \${esc(r.firstName)} \${esc(r.lastName)}" \${state.selected.has(r.id)?"checked":""}>\`}</td><td><div class="name">\${esc(r.firstName)} \${esc(r.lastName)}</div><div class="small">Updated \${date(r.updatedAt)}</div></td><td><a href="mailto:\${esc(r.email)}">\${esc(r.email)}</a></td><td>\${(r.displaySessions||r.sessions||[]).map(s=>\`<span class="chip">\${esc(s)}</span>\`).join("")}</td><td><div>\${date(r.createdAt)}</div><div class="small">\${r.archivedAt?"Removed "+date(r.archivedAt):""}</div></td><td><div class="status">Confirmation: \${esc(r.emailStatus||"")}</div><div class="status">Last sent: \${date(r.lastConfirmationSentAt)||"n/a"}</div><div class="status">Resends: \${r.resendCount||0}</div></td><td><div class="actions">\${r.archivedAt?"":\`<button class="btn" data-edit="\${esc(r.id)}">Edit</button><button class="btn btn--danger" data-archive="\${esc(r.id)}">Remove</button>\`}</div></td></tr>\`}).join("");updateBulk()}
+function render(){const rows=visibleRows();if(!rows.length){rowsEl.innerHTML='<tr><td colspan="7" class="empty">No registrations found.</td></tr>';updateBulk();return}rowsEl.innerHTML=rows.map(r=>\`<tr class="\${r.archivedAt?"is-archived":""}"><td class="select">\${r.archivedAt?"":\`<input class="rowcheck" type="checkbox" data-select="\${esc(r.id)}" aria-label="Select \${esc(r.firstName)} \${esc(r.lastName)}" \${state.selected.has(r.id)?"checked":""}>\`}</td><td><div class="name">\${esc(r.firstName)} \${esc(r.lastName)}</div><div class="small">Updated \${date(r.updatedAt)}</div></td><td><a href="mailto:\${esc(r.email)}">\${esc(r.email)}</a></td><td>\${(r.displaySessions||r.sessions||[]).map(s=>\`<span class="chip">\${esc(s)}</span>\`).join("")}</td><td><div>\${date(r.createdAt)}</div><div class="small">\${r.archivedAt?"Removed "+date(r.archivedAt):""}</div></td><td><div class="status">Confirmation: \${esc(r.emailStatus||"")}</div><div class="status">Last sent: \${date(r.lastConfirmationSentAt)||"n/a"}</div><div class="status">Resends: \${r.resendCount||0}</div></td><td><div class="actions">\${r.archivedAt?"":\`<button class="btn" data-edit="\${esc(r.id)}">Edit</button><button class="btn btn--danger" data-archive="\${esc(r.id)}">Remove</button>\`}</div></td></tr>\`).join("");updateBulk()}
 function editRow(id){const r=state.rows.find(row=>row.id===id);if(!r)return;document.getElementById("editId").value=r.id;document.getElementById("editFirst").value=r.firstName||"";document.getElementById("editLast").value=r.lastName||"";document.getElementById("editEmail").value=r.email||"";document.getElementById("editIntro").checked=(r.sessions||[]).includes("Intro Talk");document.getElementById("editDay").checked=(r.sessions||[]).includes("Day Quest");editor.showModal()}
 document.getElementById("search").addEventListener("input",e=>{state.filter=e.target.value;render()});
 document.getElementById("refresh").addEventListener("click",()=>load().catch(e=>showError(e.message)));
