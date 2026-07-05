@@ -2,6 +2,10 @@ const SESSION_ORDER = ["Intro Talk", "Day Quest"];
 const SESSION_SET = new Set(SESSION_ORDER);
 const PUBLIC_SESSION_ORDER = ["Day Quest"];
 const PUBLIC_SESSION_SET = new Set(PUBLIC_SESSION_ORDER);
+const WQ2_SIGNUP_CUTOFF = "2026-06-28T07:00:00.000Z";
+const ADMIN_ROW_COLUMNS = `id, created_at, updated_at, first_name, last_name, email, sessions,
+           email_status, admin_email_status, last_confirmation_sent_at,
+           resend_count, archived_at`;
 
 const INTRO_EVENT = {
   title: "Intro Talk & Q&A",
@@ -239,20 +243,36 @@ async function handleAdmin(request, env, url) {
 
     if (url.pathname === "/admin/update" && request.method === "POST") {
       const payload = await readPayload(request);
-      const updated = await updateAdminRegistration(env.DB, payload);
-      return adminJson({ ok: true, row: updated });
+      const result = await updateAdminRegistration(env.DB, payload);
+      const notification = await sendAdminActionNotification(env, {
+        action: "edited",
+        actorEmail: admin.email,
+        before: result.before,
+        after: result.after
+      });
+      return adminJson({ ok: true, row: result.after, notification });
     }
 
     if (url.pathname === "/admin/archive" && request.method === "POST") {
       const payload = await readPayload(request);
-      await archiveAdminRegistration(env.DB, payload.id);
-      return adminJson({ ok: true });
+      const removed = await archiveAdminRegistration(env.DB, payload.id);
+      const notification = await sendAdminActionNotification(env, {
+        action: "removed",
+        actorEmail: admin.email,
+        before: removed
+      });
+      return adminJson({ ok: true, notification });
     }
 
     if (url.pathname === "/admin/archive-bulk" && request.method === "POST") {
       const payload = await readPayload(request);
-      const archived = await archiveAdminRegistrations(env.DB, payload.ids);
-      return adminJson({ ok: true, archived });
+      const removed = await archiveAdminRegistrations(env.DB, payload.ids);
+      const notification = await sendAdminActionNotification(env, {
+        action: "removed selected registrations",
+        actorEmail: admin.email,
+        removed
+      });
+      return adminJson({ ok: true, archived: removed.length, notification });
     }
 
     return adminJson({ ok: false, error: "Not found" }, 404);
@@ -270,12 +290,23 @@ async function requireAdmin(request, env) {
   try {
     const claims = await verifyAccessJwt(token, env);
     const email = String(claims.email || "").toLowerCase();
-    const allowed = String(env.ADMIN_ALLOWED_EMAIL || "").toLowerCase();
-    if (!email || email !== allowed) return { ok: false, status: 403 };
+    const allowed = allowedAdminEmails(env);
+    if (!email || !allowed.has(email)) return { ok: false, status: 403 };
     return { ok: true, email };
   } catch {
     return { ok: false, status: 403 };
   }
+}
+
+function allowedAdminEmails(env) {
+  return new Set(
+    [env.ADMIN_ALLOWED_EMAILS, env.ADMIN_ALLOWED_EMAIL]
+      .filter(Boolean)
+      .join(",")
+      .split(",")
+      .map((email) => String(email).trim().toLowerCase())
+      .filter(Boolean)
+  );
 }
 
 async function verifyAccessJwt(token, env) {
@@ -327,9 +358,7 @@ async function verifyAccessJwt(token, env) {
 
 async function listAdminRows(db, includeArchived = false) {
   const query = `
-    SELECT id, created_at, updated_at, first_name, last_name, email, sessions,
-           email_status, admin_email_status, last_confirmation_sent_at,
-           resend_count, archived_at
+    SELECT ${ADMIN_ROW_COLUMNS}
     FROM registrations
     ${includeArchived ? "" : "WHERE archived_at IS NULL"}
     ORDER BY created_at DESC
@@ -339,7 +368,7 @@ async function listAdminRows(db, includeArchived = false) {
 }
 
 function formatAdminRow(row) {
-  return {
+  const formatted = {
     id: row.id,
     createdAt: row.created_at,
     updatedAt: row.updated_at || row.created_at,
@@ -353,6 +382,32 @@ function formatAdminRow(row) {
     resendCount: Number(row.resend_count || 0),
     archivedAt: row.archived_at || null
   };
+  formatted.displaySessions = adminSessionLabels(formatted);
+  formatted.group = adminGroupLabel(formatted);
+  return formatted;
+}
+
+function adminSessionLabels(row) {
+  return (row.sessions || []).map((session) => adminSessionLabel(session, row));
+}
+
+function adminSessionLabel(session, row) {
+  if (session === "Intro Talk") return "Intro Talk 1";
+  if (session === "Day Quest") return isWildernessQuestTwo(row) ? "Wilderness Quest #2" : "Wilderness Quest #1";
+  return session;
+}
+
+function adminGroupLabel(row) {
+  const labels = adminSessionLabels(row);
+  if (labels.includes("Wilderness Quest #2")) return "Wilderness Quest #2";
+  if (labels.includes("Wilderness Quest #1")) return "Wilderness Quest #1";
+  if (labels.includes("Intro Talk 1")) return "Intro Talk 1";
+  return "Other";
+}
+
+function isWildernessQuestTwo(row) {
+  const referenceAt = new Date(row.lastConfirmationSentAt || row.updatedAt || row.createdAt || row.created_at || "");
+  return !Number.isNaN(referenceAt.getTime()) && referenceAt.toISOString() >= WQ2_SIGNUP_CUTOFF;
 }
 
 async function updateAdminRegistration(db, payload) {
@@ -368,9 +423,7 @@ async function updateAdminRegistration(db, payload) {
   if (!email) throw new PublicError("A valid email is required.");
   if (!sessions.length) throw new PublicError("Choose at least one session.");
 
-  const existing = await db.prepare(
-    `SELECT id FROM registrations WHERE id = ? AND archived_at IS NULL LIMIT 1`
-  ).bind(id).first();
+  const existing = await fetchActiveAdminRow(db, id);
   if (!existing) throw new PublicError("Registration not found.", 404);
 
   const conflict = await db.prepare(
@@ -388,18 +441,18 @@ async function updateAdminRegistration(db, payload) {
   ).bind(firstName, lastName, email, JSON.stringify(sessions), updatedAt, id).run();
 
   const row = await db.prepare(
-    `SELECT id, created_at, updated_at, first_name, last_name, email, sessions,
-            email_status, admin_email_status, last_confirmation_sent_at,
-            resend_count, archived_at
+    `SELECT ${ADMIN_ROW_COLUMNS}
      FROM registrations
      WHERE id = ?`
   ).bind(id).first();
-  return formatAdminRow(row);
+  return { before: existing, after: formatAdminRow(row) };
 }
 
 async function archiveAdminRegistration(db, idValue) {
   const id = cleanId(idValue);
   if (!id) throw new PublicError("Registration ID is required.");
+  const existing = await fetchActiveAdminRow(db, id);
+  if (!existing) throw new PublicError("Registration not found.", 404);
   const archivedAt = new Date().toISOString();
   const result = await db.prepare(
     `UPDATE registrations
@@ -409,6 +462,7 @@ async function archiveAdminRegistration(db, idValue) {
   if (!result.meta || result.meta.changes === 0) {
     throw new PublicError("Registration not found.", 404);
   }
+  return existing;
 }
 
 async function archiveAdminRegistrations(db, idValues) {
@@ -419,16 +473,30 @@ async function archiveAdminRegistrations(db, idValues) {
   if (uniqueIds.length > 100) throw new PublicError("Remove 100 or fewer registrations at a time.");
 
   const archivedAt = new Date().toISOString();
-  let archived = 0;
+  const removed = [];
   for (const id of uniqueIds) {
+    const existing = await fetchActiveAdminRow(db, id);
+    if (!existing) continue;
     const result = await db.prepare(
       `UPDATE registrations
        SET archived_at = ?, updated_at = ?
        WHERE id = ? AND archived_at IS NULL`
     ).bind(archivedAt, archivedAt, id).run();
-    archived += Number((result.meta && result.meta.changes) || 0);
+    if (Number((result.meta && result.meta.changes) || 0) > 0) {
+      removed.push(existing);
+    }
   }
-  return archived;
+  return removed;
+}
+
+async function fetchActiveAdminRow(db, id) {
+  const row = await db.prepare(
+    `SELECT ${ADMIN_ROW_COLUMNS}
+     FROM registrations
+     WHERE id = ? AND archived_at IS NULL
+     LIMIT 1`
+  ).bind(id).first();
+  return row ? formatAdminRow(row) : null;
 }
 
 function cleanId(value) {
@@ -485,7 +553,7 @@ h1{font-family:Georgia,serif;font-weight:500;font-size:34px;line-height:1;margin
 .btn--rust{background:var(--rust);border-color:var(--rust);color:white}.btn--danger{color:#8a2f21}.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 table{width:100%;border-collapse:collapse}th,td{padding:12px 11px;border-bottom:1px solid #eadfcb;text-align:left;vertical-align:top}th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#756852;background:#f5efdf}
 th.select,td.select{width:42px;text-align:center}.rowcheck,.selectall{width:17px;height:17px;accent-color:var(--rust)}
-tr.is-archived{opacity:.58}.name{font-weight:700}.small{font-size:12px;color:var(--soft)}.chip{display:inline-flex;margin:0 4px 4px 0;padding:4px 7px;border-radius:999px;background:#eef2e7;color:#34401f;font-size:12px;font-weight:650}
+tr.is-archived{opacity:.58}.group-row td{padding:10px 12px;background:#efe4cf;color:#654f36;border-top:2px solid #d0b897;border-bottom:1px solid #d0b897;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.name{font-weight:700}.small{font-size:12px;color:var(--soft)}.chip{display:inline-flex;margin:0 4px 4px 0;padding:4px 7px;border-radius:999px;background:#eef2e7;color:#34401f;font-size:12px;font-weight:650}
 .status{font-size:12px;color:var(--soft)}.actions{display:flex;gap:7px;flex-wrap:wrap}.empty{padding:32px;color:var(--soft);text-align:center}.error{display:none;margin:0 0 14px;padding:12px;border:1px solid #dfb2a3;background:#fff4ef;color:#7e2e20;border-radius:8px}
 dialog{width:min(520px,calc(100vw - 28px));border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);padding:0;box-shadow:0 30px 90px rgba(0,0,0,.2)}dialog::backdrop{background:rgba(20,18,13,.45)}
 .modal{padding:20px}.modal h2{font-family:Georgia,serif;font-weight:500;margin:0 0 14px;font-size:28px}.grid{display:grid;gap:12px}.field label{display:block;font-size:12px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--soft);margin-bottom:5px}
@@ -530,8 +598,8 @@ dialog{width:min(520px,calc(100vw - 28px));border:1px solid var(--line);border-r
       <div class="field">
         <label>Sessions</label>
         <div class="checks">
-          <label><input type="checkbox" id="editIntro"> Intro Talk</label>
-          <label><input type="checkbox" id="editDay"> Day Quest</label>
+          <label><input type="checkbox" id="editIntro"> Intro Talk 1</label>
+          <label><input type="checkbox" id="editDay"> Wilderness Quest</label>
         </div>
       </div>
     </div>
@@ -550,10 +618,10 @@ function esc(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;"
 function date(value){if(!value)return "";const d=new Date(value);return Number.isNaN(d.getTime())?"":fmt.format(d)}
 async function api(path,options){showError("");const res=await fetch(path,{headers:{"Content-Type":"application/json"},...options});const data=await res.json().catch(()=>({}));if(!res.ok||!data.ok)throw new Error(data.error||"Request failed");return data}
 async function load(){const archived=document.getElementById("showArchived").checked;document.getElementById("exportLink").href="/admin/export.csv"+(archived?"?archived=1":"");const data=await api("/admin/data"+(archived?"?archived=1":""));state.rows=data.rows;state.selected.clear();render()}
-function visibleRows(){const q=state.filter.trim().toLowerCase();return state.rows.filter(r=>!q||[r.firstName,r.lastName,r.email,(r.sessions||[]).join(" ")].join(" ").toLowerCase().includes(q))}
+function visibleRows(){const q=state.filter.trim().toLowerCase();return state.rows.filter(r=>!q||[r.firstName,r.lastName,r.email,r.group,(r.sessions||[]).join(" "),(r.displaySessions||[]).join(" ")].join(" ").toLowerCase().includes(q))}
 function activeVisibleRows(){return visibleRows().filter(r=>!r.archivedAt)}
 function updateBulk(){const selected=[...state.selected].filter(id=>state.rows.some(r=>r.id===id&&!r.archivedAt));state.selected=new Set(selected);const count=state.selected.size;bulkBar.style.display=count?"flex":"none";selectedCount.textContent=count+" selected";const active=activeVisibleRows();selectAll.checked=active.length>0&&active.every(r=>state.selected.has(r.id));selectAll.indeterminate=count>0&&!selectAll.checked}
-function render(){const rows=visibleRows();if(!rows.length){rowsEl.innerHTML='<tr><td colspan="7" class="empty">No registrations found.</td></tr>';updateBulk();return}rowsEl.innerHTML=rows.map(r=>\`<tr class="\${r.archivedAt?"is-archived":""}"><td class="select">\${r.archivedAt?"":\`<input class="rowcheck" type="checkbox" data-select="\${esc(r.id)}" aria-label="Select \${esc(r.firstName)} \${esc(r.lastName)}" \${state.selected.has(r.id)?"checked":""}>\`}</td><td><div class="name">\${esc(r.firstName)} \${esc(r.lastName)}</div><div class="small">Updated \${date(r.updatedAt)}</div></td><td><a href="mailto:\${esc(r.email)}">\${esc(r.email)}</a></td><td>\${(r.sessions||[]).map(s=>\`<span class="chip">\${esc(s)}</span>\`).join("")}</td><td><div>\${date(r.createdAt)}</div><div class="small">\${r.archivedAt?"Removed "+date(r.archivedAt):""}</div></td><td><div class="status">Confirmation: \${esc(r.emailStatus||"")}</div><div class="status">Last sent: \${date(r.lastConfirmationSentAt)||"n/a"}</div><div class="status">Resends: \${r.resendCount||0}</div></td><td><div class="actions">\${r.archivedAt?"":\`<button class="btn" data-edit="\${esc(r.id)}">Edit</button><button class="btn btn--danger" data-archive="\${esc(r.id)}">Remove</button>\`}</div></td></tr>\`).join("");updateBulk()}
+function render(){const rows=visibleRows();if(!rows.length){rowsEl.innerHTML='<tr><td colspan="7" class="empty">No registrations found.</td></tr>';updateBulk();return}let lastGroup="";rowsEl.innerHTML=rows.map(r=>{const group=r.group||"Other";const divider=group!==lastGroup?\`<tr class="group-row"><td colspan="7">\${esc(group)}</td></tr>\`:"";lastGroup=group;return divider+\`<tr class="\${r.archivedAt?"is-archived":""}"><td class="select">\${r.archivedAt?"":\`<input class="rowcheck" type="checkbox" data-select="\${esc(r.id)}" aria-label="Select \${esc(r.firstName)} \${esc(r.lastName)}" \${state.selected.has(r.id)?"checked":""}>\`}</td><td><div class="name">\${esc(r.firstName)} \${esc(r.lastName)}</div><div class="small">Updated \${date(r.updatedAt)}</div></td><td><a href="mailto:\${esc(r.email)}">\${esc(r.email)}</a></td><td>\${(r.displaySessions||r.sessions||[]).map(s=>\`<span class="chip">\${esc(s)}</span>\`).join("")}</td><td><div>\${date(r.createdAt)}</div><div class="small">\${r.archivedAt?"Removed "+date(r.archivedAt):""}</div></td><td><div class="status">Confirmation: \${esc(r.emailStatus||"")}</div><div class="status">Last sent: \${date(r.lastConfirmationSentAt)||"n/a"}</div><div class="status">Resends: \${r.resendCount||0}</div></td><td><div class="actions">\${r.archivedAt?"":\`<button class="btn" data-edit="\${esc(r.id)}">Edit</button><button class="btn btn--danger" data-archive="\${esc(r.id)}">Remove</button>\`}</div></td></tr>\`}).join("");updateBulk()}
 function editRow(id){const r=state.rows.find(row=>row.id===id);if(!r)return;document.getElementById("editId").value=r.id;document.getElementById("editFirst").value=r.firstName||"";document.getElementById("editLast").value=r.lastName||"";document.getElementById("editEmail").value=r.email||"";document.getElementById("editIntro").checked=(r.sessions||[]).includes("Intro Talk");document.getElementById("editDay").checked=(r.sessions||[]).includes("Day Quest");editor.showModal()}
 document.getElementById("search").addEventListener("input",e=>{state.filter=e.target.value;render()});
 document.getElementById("refresh").addEventListener("click",()=>load().catch(e=>showError(e.message)));
@@ -582,7 +650,7 @@ function toCsv(rows) {
       row.firstName,
       row.lastName,
       row.email,
-      row.sessions.join(" + "),
+      (row.displaySessions || row.sessions).join(" + "),
       row.emailStatus,
       row.lastConfirmationSentAt || "",
       row.resendCount,
@@ -748,6 +816,137 @@ async function sendRegistrationEmails(env, registration, id, createdAt, options 
 
 function adminNotificationsEnabled(env) {
   return String(env.SEND_ADMIN_EMAIL || "false").toLowerCase() === "true";
+}
+
+async function sendAdminActionNotification(env, details) {
+  const to = cleanEmail(env.ADMIN_ACTION_NOTIFY_EMAIL || env.ADMIN_EMAIL);
+  if (!to || !env.RESEND_API_KEY) return { status: "skipped" };
+
+  try {
+    await sendResend(env, buildAdminActionEmail(to, details, env));
+    return { status: "sent" };
+  } catch (error) {
+    return { status: "failed", error: shortError(error) };
+  }
+}
+
+function buildAdminActionEmail(to, details, env) {
+  const actor = details.actorEmail || "unknown admin";
+  const subject = details.action === "edited"
+    ? `Wilderness Quest admin edit: ${adminRowName(details.after || details.before)}`
+    : `Wilderness Quest admin removal by ${actor}`;
+  const body = details.action === "edited"
+    ? adminEditActionHtml(details.before, details.after, actor)
+    : adminRemovalActionHtml(details.removed || [details.before].filter(Boolean), actor);
+
+  return {
+    from: env.FROM_EMAIL,
+    to,
+    subject,
+    html: emailShell({
+      eyebrow: "Admin activity",
+      title: "Wilderness Quest registration update",
+      body,
+      siteUrl: env.SITE_URL
+    }),
+    text: adminActionText(details, actor)
+  };
+}
+
+function adminEditActionHtml(before, after, actor) {
+  const diffs = adminEditDiffs(before, after);
+  const rows = diffs.length
+    ? diffs.map((diff) => `
+        <tr>
+          <td style="padding:10px 14px;border-top:1px solid #e1d5bd;font-weight:700;">${escapeHtml(diff.label)}</td>
+          <td style="padding:10px 14px;border-top:1px solid #e1d5bd;color:#6b5e4c;">${escapeHtml(diff.before || "blank")}</td>
+          <td style="padding:10px 14px;border-top:1px solid #e1d5bd;">${escapeHtml(diff.after || "blank")}</td>
+        </tr>
+      `).join("")
+    : `<tr><td colspan="3" style="padding:10px 14px;border-top:1px solid #e1d5bd;">No field values changed.</td></tr>`;
+
+  return `
+    <p style="margin:0 0 12px;"><strong>Edited by:</strong> ${escapeHtml(actor)}</p>
+    <p style="margin:0 0 18px;"><strong>Registration:</strong> ${escapeHtml(adminRowName(after))} (${escapeHtml(after.email)})</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:18px 0;border:1px solid #e1d5bd;background:#fffdf7;">
+      <tr>
+        <td style="padding:10px 14px;font-weight:700;">Field</td>
+        <td style="padding:10px 14px;font-weight:700;">From</td>
+        <td style="padding:10px 14px;font-weight:700;">To</td>
+      </tr>
+      ${rows}
+    </table>
+  `;
+}
+
+function adminRemovalActionHtml(rows, actor) {
+  const items = rows.map((row) => `
+    <tr>
+      <td style="padding:10px 14px;border-top:1px solid #e1d5bd;">${escapeHtml(adminRowName(row))}</td>
+      <td style="padding:10px 14px;border-top:1px solid #e1d5bd;"><a href="mailto:${escapeAttr(row.email)}" style="color:#9A4A2B;">${escapeHtml(row.email)}</a></td>
+      <td style="padding:10px 14px;border-top:1px solid #e1d5bd;">${escapeHtml(adminRowSessions(row))}</td>
+    </tr>
+  `).join("");
+
+  return `
+    <p style="margin:0 0 18px;"><strong>Removed by:</strong> ${escapeHtml(actor)}</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:18px 0;border:1px solid #e1d5bd;background:#fffdf7;">
+      <tr>
+        <td style="padding:10px 14px;font-weight:700;">Name</td>
+        <td style="padding:10px 14px;font-weight:700;">Email</td>
+        <td style="padding:10px 14px;font-weight:700;">Registration</td>
+      </tr>
+      ${items}
+    </table>
+  `;
+}
+
+function adminEditDiffs(before, after) {
+  const fields = [
+    ["First name", "firstName"],
+    ["Last name", "lastName"],
+    ["Email", "email"]
+  ];
+  const diffs = fields
+    .filter(([, key]) => String(before[key] || "") !== String(after[key] || ""))
+    .map(([label, key]) => ({ label, before: before[key], after: after[key] }));
+
+  const beforeSessions = adminRowSessions(before);
+  const afterSessions = adminRowSessions(after);
+  if (beforeSessions !== afterSessions) {
+    diffs.push({ label: "Registration", before: beforeSessions, after: afterSessions });
+  }
+
+  return diffs;
+}
+
+function adminActionText(details, actor) {
+  if (details.action === "edited") {
+    const diffs = adminEditDiffs(details.before, details.after);
+    return [
+      `Wilderness Quest registration edited by ${actor}`,
+      "",
+      `Registration: ${adminRowName(details.after)} <${details.after.email}>`,
+      "",
+      "Changes:",
+      ...(diffs.length ? diffs.map((diff) => `- ${diff.label}: ${diff.before || "blank"} -> ${diff.after || "blank"}`) : ["- No field values changed."])
+    ].join("\n");
+  }
+
+  const rows = details.removed || [details.before].filter(Boolean);
+  return [
+    `Wilderness Quest registration removed by ${actor}`,
+    "",
+    ...rows.map((row) => `- ${adminRowName(row)} <${row.email}> - ${adminRowSessions(row)}`)
+  ].join("\n");
+}
+
+function adminRowName(row) {
+  return `${row.firstName || ""} ${row.lastName || ""}`.trim() || row.email || row.id || "Unknown registration";
+}
+
+function adminRowSessions(row) {
+  return (row.displaySessions || row.sessions || []).join(" + ");
 }
 
 function buildRegistrantEmail(registration, env) {

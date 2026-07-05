@@ -8,19 +8,19 @@ Fast admin URL:
 
 https://vision-quest-registration.cperryiii.workers.dev/admin/
 
-This path is protected by Cloudflare Access and only allows `cpiii@thedomc.org`.
-Use the one-time PIN sent to that email address.
+This path is protected by Cloudflare Access and only allows `cpiii@thedomc.org` and `mangelini3@gmail.com`.
+Use the one-time PIN sent to the authorized email address.
 
 Cloudflare Access configuration:
 
 - Application: `Vision Quest Admin`
 - Protected path: `vision-quest-registration.cperryiii.workers.dev/admin*`
 - Allowed identity provider: One-time PIN
-- Allowed email: `cpiii@thedomc.org`
+- Allowed emails: `cpiii@thedomc.org`, `mangelini3@gmail.com`
 - Application session duration: `72h`
 - Policy session duration: `72h`
 
-The Worker also validates the Cloudflare Access JWT server-side and rejects any admin request whose verified email is not `cpiii@thedomc.org`. This check is not client-side.
+The Worker also validates the Cloudflare Access JWT server-side and rejects any admin request whose verified email is not in the configured admin allowlist. This check is not client-side.
 
 Cloudflare D1 database: `vision_quest_registrations`  
 Table: `registrations`
@@ -59,7 +59,7 @@ Email address is the registration identity.
 - Existing email + no new sessions: do not create a duplicate and do not send email automatically.
 - Existing email + resend request: resend the confirmation and increment `resend_count`.
 
-Per-registration admin email notifications are currently disabled by `SEND_ADMIN_EMAIL = "false"` in `wrangler.toml`.
+Per-registration admin email notifications are currently disabled by `SEND_ADMIN_EMAIL = "false"` in `wrangler.toml`. Edit and remove notifications still go to `ADMIN_EMAIL`.
 
 ## Admin behavior
 
@@ -67,4 +67,6 @@ Per-registration admin email notifications are currently disabled by `SEND_ADMIN
 - `/admin/export.csv` downloads a CSV export.
 - Edit updates first name, last name, email, and session selection.
 - Remove soft-archives a row by setting `archived_at`; it does not hard-delete the data.
+- Registrations are labeled as `Intro Talk 1`, `Wilderness Quest #1`, or `Wilderness Quest #2` in the admin view and CSV export.
+- Any edit or remove action sends an owner notification with the acting admin and changed values.
 - Admin responses send `X-Robots-Tag: noindex, nofollow, noarchive` and are not linked from the public site.
