@@ -59,7 +59,7 @@
       form.reset();
       form.style.display='block';
       var submit = form.querySelector('button[type="submit"]');
-      if(submit){ submit.disabled=false; submit.textContent='Register'; submit.removeAttribute('aria-busy'); }
+      if(submit){ submit.disabled=false; submit.textContent='Submit'; submit.removeAttribute('aria-busy'); }
     }
     if(confirm) confirm.style.display='none';
     var resend = doc.getElementById('rsvpResend');
@@ -129,11 +129,21 @@
     return result;
   }
 
+  function sessionLabel(session){
+    if(session === 'Day Quest') return 'July 19 Day Quest';
+    if(session === 'Day Quest Waitlist') return 'Next Day Quest Waitlist';
+    return session;
+  }
+
+  function sessionList(sessions){
+    return (sessions || []).map(sessionLabel).join(' + ');
+  }
+
   function showConfirmation(first, result){
     clearRsvpError();
     form.style.display='none';
     confirm.querySelector('.who').textContent = first ? (', ' + first) : '';
-    var sessions = ((result && result.sessions) || []).join(' + ');
+    var sessions = sessionList((result && result.sessions) || []);
     var message = "You're registered for " + sessions + ". We've emailed event details to you.";
     var resend = doc.getElementById('rsvpResend');
 
@@ -181,7 +191,7 @@
         sessions:chosen,
         website:website
       };
-      setButtonBusy(submit, true, 'Sending...', 'Register');
+      setButtonBusy(submit, true, 'Sending...', 'Submit');
 
       try{
         var result = await postRegistration(lastRegistrationPayload);
@@ -189,7 +199,7 @@
       }catch(err){
         showRsvpError((err && err.message) ? err.message : 'Registration could not be completed. Please try again.');
       }finally{
-        setButtonBusy(submit, false, 'Sending...', 'Register');
+        setButtonBusy(submit, false, 'Sending...', 'Submit');
       }
     });
 

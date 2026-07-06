@@ -1,7 +1,8 @@
-const SESSION_ORDER = ["Intro Talk", "Day Quest"];
+const SESSION_ORDER = ["Intro Talk", "Day Quest", "Day Quest Waitlist", "August Day Quest"];
 const SESSION_SET = new Set(SESSION_ORDER);
-const PUBLIC_SESSION_ORDER = ["Day Quest"];
+const PUBLIC_SESSION_ORDER = ["Day Quest", "Day Quest Waitlist", "August Day Quest"];
 const PUBLIC_SESSION_SET = new Set(PUBLIC_SESSION_ORDER);
+const FULL_PUBLIC_SESSION_SET = new Set(["Day Quest"]);
 const WQ2_SIGNUP_CUTOFF = "2026-06-28T07:00:00.000Z";
 const ADMIN_ROW_COLUMNS = `id, created_at, updated_at, first_name, last_name, email, sessions,
            email_status, admin_email_status, last_confirmation_sent_at,
@@ -32,6 +33,19 @@ const DAY_EVENT = {
   ],
   preparation: "Hydrate well the day before and the morning of. Lemon water is a good option for electrolytes. Lunch will be provided after solo time. Michele suggests a light, plant-based morning meal if possible, such as nuts, fruit, yogurt, or steel cut oats. You will be fasting from food during solo time.",
   phone: "During solo time, and for the day unless there is an urgent matter, please turn phones off so there are no distractions."
+};
+
+const WAITLIST_EVENT = {
+  title: "Day Quest Waitlist",
+  note: "The July 19 Day Quest is full. You are on the waitlist for the next available Day Quest, and we will email you when a spot opens or when the next date is confirmed."
+};
+
+const AUGUST_EVENT = {
+  title: "August Day Quest",
+  date: "TBD",
+  time: "TBD",
+  location: "TBD",
+  note: "Michele is considering an August Day Quest. We will email the date, location, and preparation details as soon as they are settled."
 };
 
 class PublicError extends Error {
@@ -389,10 +403,12 @@ function formatAdminRow(row) {
 function adminSessionLabels(row) {
   const sessions = row.sessions || [];
   const labels = [];
+  if (sessions.includes("August Day Quest")) labels.push(adminSessionLabel("August Day Quest", row));
+  if (sessions.includes("Day Quest Waitlist")) labels.push(adminSessionLabel("Day Quest Waitlist", row));
   if (sessions.includes("Day Quest")) labels.push(adminSessionLabel("Day Quest", row));
   if (sessions.includes("Intro Talk")) labels.push(adminSessionLabel("Intro Talk", row));
   for (const session of sessions) {
-    if (session !== "Day Quest" && session !== "Intro Talk") {
+    if (!["August Day Quest", "Day Quest Waitlist", "Day Quest", "Intro Talk"].includes(session)) {
       labels.push(adminSessionLabel(session, row));
     }
   }
@@ -402,6 +418,7 @@ function adminSessionLabels(row) {
 function adminSessionLabel(session, row) {
   if (session === "Intro Talk") return "Intro Talk 1";
   if (session === "Day Quest") return isWildernessQuestTwo(row) ? "Wilderness Quest #2" : "Wilderness Quest #1";
+  if (session === "Day Quest Waitlist") return "Next Day Quest Waitlist";
   return session;
 }
 
@@ -600,6 +617,8 @@ dialog{width:min(520px,calc(100vw - 28px));border:1px solid var(--line);border-r
         <div class="checks">
           <label><input type="checkbox" id="editIntro"> Intro Talk 1</label>
           <label><input type="checkbox" id="editDay"> Wilderness Quest</label>
+          <label><input type="checkbox" id="editWaitlist"> Next Day Quest Waitlist</label>
+          <label><input type="checkbox" id="editAugust"> August Day Quest</label>
         </div>
       </div>
     </div>
@@ -622,7 +641,7 @@ function visibleRows(){const q=state.filter.trim().toLowerCase();return state.ro
 function activeVisibleRows(){return visibleRows().filter(r=>!r.archivedAt)}
 function updateBulk(){const selected=[...state.selected].filter(id=>state.rows.some(r=>r.id===id&&!r.archivedAt));state.selected=new Set(selected);const count=state.selected.size;bulkBar.style.display=count?"flex":"none";selectedCount.textContent=count+" selected";const active=activeVisibleRows();selectAll.checked=active.length>0&&active.every(r=>state.selected.has(r.id));selectAll.indeterminate=count>0&&!selectAll.checked}
 function render(){const rows=visibleRows();if(!rows.length){rowsEl.innerHTML='<tr><td colspan="7" class="empty">No registrations found.</td></tr>';updateBulk();return}rowsEl.innerHTML=rows.map(r=>\`<tr class="\${r.archivedAt?"is-archived":""}"><td class="select">\${r.archivedAt?"":\`<input class="rowcheck" type="checkbox" data-select="\${esc(r.id)}" aria-label="Select \${esc(r.firstName)} \${esc(r.lastName)}" \${state.selected.has(r.id)?"checked":""}>\`}</td><td><div class="name">\${esc(r.firstName)} \${esc(r.lastName)}</div><div class="small">Updated \${date(r.updatedAt)}</div></td><td><a href="mailto:\${esc(r.email)}">\${esc(r.email)}</a></td><td>\${(r.displaySessions||r.sessions||[]).map(s=>\`<span class="chip">\${esc(s)}</span>\`).join("")}</td><td><div>\${date(r.createdAt)}</div><div class="small">\${r.archivedAt?"Removed "+date(r.archivedAt):""}</div></td><td><div class="status">Confirmation: \${esc(r.emailStatus||"")}</div><div class="status">Last sent: \${date(r.lastConfirmationSentAt)||"n/a"}</div><div class="status">Resends: \${r.resendCount||0}</div></td><td><div class="actions">\${r.archivedAt?"":\`<button class="btn" data-edit="\${esc(r.id)}">Edit</button><button class="btn btn--danger" data-archive="\${esc(r.id)}">Remove</button>\`}</div></td></tr>\`).join("");updateBulk()}
-function editRow(id){const r=state.rows.find(row=>row.id===id);if(!r)return;document.getElementById("editId").value=r.id;document.getElementById("editFirst").value=r.firstName||"";document.getElementById("editLast").value=r.lastName||"";document.getElementById("editEmail").value=r.email||"";document.getElementById("editIntro").checked=(r.sessions||[]).includes("Intro Talk");document.getElementById("editDay").checked=(r.sessions||[]).includes("Day Quest");editor.showModal()}
+function editRow(id){const r=state.rows.find(row=>row.id===id);if(!r)return;document.getElementById("editId").value=r.id;document.getElementById("editFirst").value=r.firstName||"";document.getElementById("editLast").value=r.lastName||"";document.getElementById("editEmail").value=r.email||"";document.getElementById("editIntro").checked=(r.sessions||[]).includes("Intro Talk");document.getElementById("editDay").checked=(r.sessions||[]).includes("Day Quest");document.getElementById("editWaitlist").checked=(r.sessions||[]).includes("Day Quest Waitlist");document.getElementById("editAugust").checked=(r.sessions||[]).includes("August Day Quest");editor.showModal()}
 document.getElementById("search").addEventListener("input",e=>{state.filter=e.target.value;render()});
 document.getElementById("refresh").addEventListener("click",()=>load().catch(e=>showError(e.message)));
 document.getElementById("showArchived").addEventListener("change",()=>load().catch(e=>showError(e.message)));
@@ -630,7 +649,7 @@ selectAll.addEventListener("change",()=>{const rows=activeVisibleRows();rows.for
 rowsEl.addEventListener("change",e=>{const box=e.target.closest("[data-select]");if(!box)return;box.checked?state.selected.add(box.dataset.select):state.selected.delete(box.dataset.select);updateBulk()});
 rowsEl.addEventListener("click",async e=>{const edit=e.target.closest("[data-edit]"),archive=e.target.closest("[data-archive]");if(edit)editRow(edit.dataset.edit);if(archive&&confirm("Remove this registration from the active list?")){try{await api("/admin/archive",{method:"POST",body:JSON.stringify({id:archive.dataset.archive})});await load()}catch(err){showError(err.message)}}});
 document.getElementById("bulkRemove").addEventListener("click",async()=>{const ids=[...state.selected];if(!ids.length)return;if(confirm("Remove "+ids.length+" selected registration"+(ids.length===1?"":"s")+" from the active list?")){try{await api("/admin/archive-bulk",{method:"POST",body:JSON.stringify({ids})});await load()}catch(err){showError(err.message)}}});
-document.getElementById("saveEdit").addEventListener("click",async e=>{e.preventDefault();const sessions=[];if(document.getElementById("editIntro").checked)sessions.push("Intro Talk");if(document.getElementById("editDay").checked)sessions.push("Day Quest");try{await api("/admin/update",{method:"POST",body:JSON.stringify({id:document.getElementById("editId").value,firstName:document.getElementById("editFirst").value,lastName:document.getElementById("editLast").value,email:document.getElementById("editEmail").value,sessions})});editor.close();await load()}catch(err){showError(err.message)}});
+document.getElementById("saveEdit").addEventListener("click",async e=>{e.preventDefault();const sessions=[];if(document.getElementById("editIntro").checked)sessions.push("Intro Talk");if(document.getElementById("editDay").checked)sessions.push("Day Quest");if(document.getElementById("editWaitlist").checked)sessions.push("Day Quest Waitlist");if(document.getElementById("editAugust").checked)sessions.push("August Day Quest");try{await api("/admin/update",{method:"POST",body:JSON.stringify({id:document.getElementById("editId").value,firstName:document.getElementById("editFirst").value,lastName:document.getElementById("editLast").value,email:document.getElementById("editEmail").value,sessions})});editor.close();await load()}catch(err){showError(err.message)}});
 load().catch(e=>showError(e.message));
 </script>
 </body>
@@ -708,6 +727,9 @@ function validateRegistration(payload) {
   if (!lastName) throw new PublicError("Last name is required.");
   if (!email) throw new PublicError("A valid email is required.");
   if (!sessions.length) throw new PublicError("Please choose at least one session.");
+  if (sessions.some((session) => FULL_PUBLIC_SESSION_SET.has(session))) {
+    throw new PublicError("The July 19 Day Quest is full. Please join the waitlist or register for the August Day Quest.", 409);
+  }
 
   return { firstName, lastName, email, sessions };
 }
@@ -949,20 +971,38 @@ function adminRowSessions(row) {
   return (row.displaySessions || row.sessions || []).join(" + ");
 }
 
+function emailSessionLabel(session) {
+  if (session === "Intro Talk") return "Intro Talk 1";
+  if (session === "Day Quest") return "July 19 Day Quest";
+  if (session === "Day Quest Waitlist") return "Next Day Quest Waitlist";
+  return session;
+}
+
+function emailSessionList(registration) {
+  return registration.sessions.map(emailSessionLabel).join(" + ");
+}
+
 function buildRegistrantEmail(registration, env) {
   const hasIntro = registration.sessions.includes("Intro Talk");
   const hasDay = registration.sessions.includes("Day Quest");
-  const title = hasIntro && hasDay
-    ? "Wilderness Quest registration confirmed"
-    : hasIntro
-      ? "Wilderness Quest Intro Talk registration"
-      : "Wilderness Quest Day Quest registration received";
+  const hasWaitlist = registration.sessions.includes("Day Quest Waitlist");
+  const hasAugust = registration.sessions.includes("August Day Quest");
+  const title = hasWaitlist && !hasAugust && !hasDay
+    ? "Wilderness Quest waitlist received"
+    : hasAugust && !hasWaitlist && !hasDay
+      ? "August Day Quest registration received"
+      : "Wilderness Quest registration confirmed";
 
   const introHtml = hasIntro ? introSectionHtml(env) : "";
   const dayHtml = hasDay ? daySectionHtml() : "";
+  const waitlistHtml = hasWaitlist ? waitlistSectionHtml() : "";
+  const augustHtml = hasAugust ? augustSectionHtml() : "";
   const introText = hasIntro ? introSectionText(env) : "";
   const dayText = hasDay ? daySectionText() : "";
+  const waitlistText = hasWaitlist ? waitlistSectionText() : "";
+  const augustText = hasAugust ? augustSectionText() : "";
   const attachments = undefined;
+  const sessions = emailSessionList(registration);
 
   return {
     from: env.FROM_EMAIL,
@@ -973,9 +1013,11 @@ function buildRegistrantEmail(registration, env) {
       title,
       body: `
         <p style="margin:0 0 16px;">Hi ${escapeHtml(registration.firstName)},</p>
-        <p style="margin:0 0 20px;">Thank you for registering for the Wilderness Quest. Your registration is confirmed for: <strong>${escapeHtml(registration.sessions.join(" + "))}</strong>.</p>
+        <p style="margin:0 0 20px;">Thank you for registering for the Wilderness Quest. We received your request for: <strong>${escapeHtml(sessions)}</strong>.</p>
         ${introHtml}
         ${dayHtml}
+        ${waitlistHtml}
+        ${augustHtml}
         <p style="margin:22px 0 0;color:#5d5447;">If your plans change, reply to this email so we can keep the group list accurate.</p>
       `,
       siteUrl: env.SITE_URL
@@ -983,10 +1025,12 @@ function buildRegistrantEmail(registration, env) {
     text: [
       `Hi ${registration.firstName},`,
       "",
-      `Thank you for registering for the Wilderness Quest. Your registration is confirmed for: ${registration.sessions.join(" + ")}.`,
+      `Thank you for registering for the Wilderness Quest. We received your request for: ${sessions}.`,
       "",
       introText,
       dayText,
+      waitlistText,
+      augustText,
       "If your plans change, reply to this email so we can keep the group list accurate.",
       "",
       `Wilderness Quest page: ${env.SITE_URL}`
@@ -1030,6 +1074,23 @@ function daySectionHtml() {
   `;
 }
 
+function waitlistSectionHtml() {
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:22px 0;border:1px solid #d8caa9;border-radius:8px;background:#f7f0df;">
+      <tr><td style="padding:18px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">Waitlist</td><td style="padding:18px;">${escapeHtml(WAITLIST_EVENT.note)}</td></tr>
+    </table>
+  `;
+}
+
+function augustSectionHtml() {
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:22px 0;border:1px solid #e1d5bd;border-radius:8px;background:#fffdf7;">
+      <tr><td style="padding:18px 18px 8px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">August</td><td style="padding:18px 18px 8px;">Date, time, and location: ${escapeHtml(AUGUST_EVENT.date)}</td></tr>
+      <tr><td style="padding:8px 18px 18px;width:116px;color:#654f36;font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;">Note</td><td style="padding:8px 18px 18px;">${escapeHtml(AUGUST_EVENT.note)}</td></tr>
+    </table>
+  `;
+}
+
 function introSectionText() {
   return [
     INTRO_EVENT.title,
@@ -1055,9 +1116,27 @@ function daySectionText() {
   ].join("\n");
 }
 
+function waitlistSectionText() {
+  return [
+    WAITLIST_EVENT.title,
+    WAITLIST_EVENT.note,
+    ""
+  ].join("\n");
+}
+
+function augustSectionText() {
+  return [
+    AUGUST_EVENT.title,
+    "When: TBD",
+    "Where: TBD",
+    AUGUST_EVENT.note,
+    ""
+  ].join("\n");
+}
+
 function buildAdminEmail(registration, id, createdAt, env) {
   const subject = `New Wilderness Quest registration: ${registration.firstName} ${registration.lastName}`;
-  const sessions = registration.sessions.join(" + ");
+  const sessions = emailSessionList(registration);
 
   return {
     from: env.FROM_EMAIL,
