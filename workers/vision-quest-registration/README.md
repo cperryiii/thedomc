@@ -67,7 +67,7 @@ Per-registration admin email notifications are currently disabled by `SEND_ADMIN
 - `/admin/export.csv` downloads a CSV export.
 - Edit updates first name, last name, email, and session selection.
 - Remove soft-archives a row by setting `archived_at`; it does not hard-delete the data.
-- Registrations are labeled as `Intro Talk 1`, `Wilderness Quest #1`, `Wilderness Quest #2`, `August Day Quest`, or `Next Day Quest Waitlist` in the admin view and CSV export.
-- The July 19 Day Quest is capped and no longer accepts new public registrations; public users can join the next-day-quest waitlist or register interest for the August Day Quest.
+- Registrations are labeled as `Intro Talk 1`, `Wilderness Quest #1`, `Wilderness Quest #2`, or `Next Day Quest Waitlist` in the admin view and CSV export.
+- The July 19 Day Quest is capped and no longer accepts new public registrations; public users can join the next-day-quest waitlist.
 - Any edit or remove action sends an owner notification with the acting admin and changed values.
 - Admin responses send `X-Robots-Tag: noindex, nofollow, noarchive` and are not linked from the public site.

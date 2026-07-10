@@ -59,7 +59,7 @@
       form.reset();
       form.style.display='block';
       var submit = form.querySelector('button[type="submit"]');
-      if(submit){ submit.disabled=false; submit.textContent='Submit'; submit.removeAttribute('aria-busy'); }
+      if(submit){ submit.disabled=false; submit.textContent='Join waitlist'; submit.removeAttribute('aria-busy'); }
     }
     if(confirm) confirm.style.display='none';
     var resend = doc.getElementById('rsvpResend');
@@ -191,7 +191,7 @@
         sessions:chosen,
         website:website
       };
-      setButtonBusy(submit, true, 'Sending...', 'Submit');
+      setButtonBusy(submit, true, 'Sending...', 'Join waitlist');
 
       try{
         var result = await postRegistration(lastRegistrationPayload);
@@ -199,7 +199,7 @@
       }catch(err){
         showRsvpError((err && err.message) ? err.message : 'Registration could not be completed. Please try again.');
       }finally{
-        setButtonBusy(submit, false, 'Sending...', 'Submit');
+        setButtonBusy(submit, false, 'Sending...', 'Join waitlist');
       }
     });
 
