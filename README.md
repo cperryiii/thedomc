@@ -5,7 +5,7 @@ Static website for **The DOMC — The Discipline of Mental Coherence**.
 - `/` — coming-soon landing
 - `/vision-quest/` — full landing page for the Vision Quest series with Michele Angelini
 
-Plain HTML + CSS, no build step. Hosted on GitHub Pages at `thedomc.org`.
+Plain HTML + CSS, no app build step. Hosted on GitHub Pages at `thedomc.org`.
 
 ## Local preview
 
@@ -20,7 +20,14 @@ Port 8088 is reserved for this project. Do not reassign without updating the reg
 
 ## Deploy
 
-GitHub Pages serves the repo root automatically. The `CNAME` file binds the site to `thedomc.org`.
+GitHub Pages deploys with `.github/workflows/pages.yml`. The workflow only runs when public site files change:
+
+- `index.html`
+- `CNAME`
+- `vision-quest/**`
+- `.github/workflows/pages.yml`
+
+Worker/admin changes under `workers/**` do not redeploy the public site. The `CNAME` file binds the site to `thedomc.org`.
 
 See `DEPLOY.md` for first-time DNS setup at Namecheap and how to redirect the other 5 domains.
 
@@ -30,11 +37,14 @@ See `DEPLOY.md` for first-time DNS setup at Namecheap and how to redirect the ot
 thedomc/
 ├── index.html                  # The DOMC — coming soon
 ├── vision-quest/
-│   └── index.html              # Vision Quest landing
-├── assets/
-│   ├── css/styles.css          # Shared design tokens + per-page themes
-│   └── img/                    # Reserved for future imagery
+│   ├── index.html              # Vision Quest landing
+│   ├── vq.css
+│   ├── vq.js
+│   └── *.jpg, *.png            # Vision Quest page images + social preview
+├── workers/
+│   └── vision-quest-registration/
 ├── CNAME                       # GitHub Pages custom-domain binding
+├── .github/workflows/pages.yml # Path-filtered GitHub Pages deploy
 ├── README.md
 ├── DEPLOY.md
 └── .gitignore
@@ -42,4 +52,4 @@ thedomc/
 
 ## Editing copy
 
-Both pages are plain HTML. Headings, paragraphs, dates — all directly editable in the file. CSS lives in one place (`assets/css/styles.css`) and uses CSS custom properties so palette tweaks happen in one block per page theme (`.theme-domc`, `.theme-vq`).
+The homepage is a self-contained HTML file. The Vision Quest page uses `vision-quest/index.html`, `vision-quest/vq.css`, and `vision-quest/vq.js`. Headings, paragraphs, dates, and event copy are directly editable in the matching page files.
