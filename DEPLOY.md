@@ -20,10 +20,11 @@ Or, if doing it manually:
 ## 2. Enable GitHub Pages
 
 In the repo: **Settings → Pages**
-- **Source**: Deploy from a branch
-- **Branch**: `main`, folder `/ (root)`
+- **Source**: GitHub Actions
 - **Custom domain**: `thedomc.org` (already set via the `CNAME` file in the repo root)
 - Check **Enforce HTTPS** once the certificate is issued (takes a few minutes after DNS is correct).
+
+The Pages workflow is `.github/workflows/pages.yml`. It packages only the public static site files and ignores Worker/admin-only changes so those commits do not consume Pages deploy runs.
 
 ## 3. Namecheap DNS — primary domain (thedomc.org)
 
@@ -72,6 +73,6 @@ Tools: https://www.whatsmydns.net/ for global DNS checks; `curl -I https://thedo
 ## Future
 
 When ready to add real content:
-- Drop images into `assets/img/`
-- Add additional pages as new folders (e.g., `/about/index.html`) — keeps URLs clean
+- Add page images next to the page that uses them, unless a shared assets folder is reintroduced intentionally.
+- Add additional pages as new folders (e.g., `/about/index.html`) and add those paths to `.github/workflows/pages.yml`.
 - Add `sitemap.xml` and `robots.txt` when SEO matters
